@@ -92,10 +92,24 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
     ///
     /// Note that depending on the actual values of weights and biases
     /// you can lose precision necessary for correct work of the layer.
-    pub fn quantize<T: Float>(self) -> Layer<INPUT_SIZE, OUTPUT_SIZE, T> {
+    pub fn quantize<T: Float>(&self) -> Layer<INPUT_SIZE, OUTPUT_SIZE, T> {
         Layer {
-            neurons: self.neurons.map(|neuron| neuron.quantize::<T>())
+            neurons: core::array::from_fn(|i| {
+                self.neurons[i].quantize::<T>()
+            })
         }
+    }
+
+    /// Calculate difference between weights and biases of current
+    /// and given layers' neurons using provided loss function.
+    ///
+    /// This can be used to measure the precision lost by the neurons
+    /// after their weights and biases quantization.
+    pub fn diff<T: Float>(&self, other: &Layer<INPUT_SIZE, OUTPUT_SIZE, T>, loss_function: fn(f64, f64) -> f64) -> f64 {
+        self.neurons.iter()
+            .zip(other.neurons.iter())
+            .map(|(curr, other)| curr.diff(other, loss_function))
+            .sum()
     }
 
     /// Calculate activated outputs of the neurons (perform forward propagation).
@@ -205,10 +219,14 @@ fn test_neurons_layer_backward_propagation() {
     assert!(layer.loss(&output, &[0.0, 1.0]) < 0.5);
 
     // Test quantized neuron.
-    let layer = layer.quantize::<qf8_16_2>();
+    let quant_layer = layer.quantize::<qf8_16_1>();
 
-    let output = layer.forward(&[
-        qf8_16_2::from_f64(0.9)
+    let loss = quant_layer.diff(&layer, quadratic_error);
+
+    assert!(loss < 0.05);
+
+    let output = quant_layer.forward(&[
+        qf8_16_1::from_f64(0.9)
     ]);
 
     assert!(output[0].as_f32() > 0.5);

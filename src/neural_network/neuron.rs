@@ -152,7 +152,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     ///
     /// Note that depending on the actual values of weights and bias
     /// you can lose precision necessary for correct work of the neuron.
-    pub fn quantize<T: Float>(self) -> Neuron<INPUT_SIZE, T> {
+    pub fn quantize<T: Float>(&self) -> Neuron<INPUT_SIZE, T> {
         unsafe {
             Neuron {
                 weights: core::array::from_fn::<T, INPUT_SIZE, _>(|i| T::from_float(self.weights[i])),
@@ -166,6 +166,20 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
                 loss_function_derivative: std::mem::transmute::<fn(F, F) -> F, fn(T, T) -> T>(self.loss_function_derivative)
             }
         }
+    }
+
+    /// Calculate difference between weights and biases of current
+    /// and given neuron using provided loss function.
+    ///
+    /// This can be used to measure the precision lost by the neuron
+    /// after its weights and bias quantization.
+    pub fn diff<T: Float>(&self, other: &Neuron<INPUT_SIZE, T>, loss_function: fn(f64, f64) -> f64) -> f64 {
+        let weights_diff = self.weights.iter()
+            .zip(other.weights.iter())
+            .map(|(curr, other)| loss_function(curr.as_f64() - other.as_f64(), 0.0))
+            .sum::<f64>();
+
+        weights_diff + loss_function(self.bias.as_f64() - other.bias.as_f64(), 0.0)
     }
 
     /// Calculate sum of inputs multiplied by appropriate weights
@@ -375,9 +389,13 @@ fn test_neuron_backward_propagation() {
 
     // Test quantized neuron.
     // qf8_2 will easily store 1.0 which is expected for this neuron.
-    let neuron = neuron.quantize::<qf8_2>();
+    let quant_neuron = neuron.quantize::<qf8_2>();
 
-    let output = neuron.forward(&[
+    let loss = quant_neuron.diff(&neuron, quadratic_error);
+
+    assert!(loss < 0.05);
+
+    let output = quant_neuron.forward(&[
         qf8_2::from_f64(1.0),
         qf8_2::from_f64(2.0)
     ]);
