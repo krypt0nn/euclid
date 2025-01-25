@@ -8,6 +8,10 @@ use super::QFloat8;
 /// - 64 values in `(-8.0, -4.0)` and `(4.0, 8.0)`.
 /// - 64 values in `(-16.0, -8.0)` and `(8.0, 16.0)`.
 ///
+/// Unlike `qf8_16_1` this type has increased precision for `(-1.5, 1.5)`
+/// while `qf8_16_1` has uniformal distribution of 128 values
+/// for whole `(-4.0, 4.0)` range.
+///
 /// More details are available in `QFloat8` documentation.
 ///
 /// ## Distribution chart:

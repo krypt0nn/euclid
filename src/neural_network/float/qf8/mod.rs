@@ -18,6 +18,8 @@
 
 use super::*;
 
+mod qf8_1_type;
+
 mod qf8_2_type;
 mod qf8_2_1_type;
 
@@ -32,6 +34,8 @@ mod qf8_8_2_type;
 mod qf8_16_type;
 mod qf8_16_1_type;
 mod qf8_16_2_type;
+
+pub use qf8_1_type::qf8_1;
 
 pub use qf8_2_type::qf8_2;
 pub use qf8_2_1_type::qf8_2_1;
