@@ -49,7 +49,7 @@
                     meta = with pkgs.lib; {
                         description = config.package.description;
                         homepage = config.package.homepage;
-                        license = licenses.mit;
+                        license = licenses.gpl3Only;
 
                         maintainers = [
                             {
