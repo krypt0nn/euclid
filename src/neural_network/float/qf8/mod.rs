@@ -139,12 +139,12 @@ impl<const M: u32, const R1: u32, const R2: u32, const R3: u32, const R4: u32> Q
 
         /// Round float number into the integer.
         const fn round(value: f64) -> u8 {
-            let byte = value as u8;
+            let int = value as u8;
 
-            if value - (byte as f64) < 0.5 {
-                byte
+            if value - (int as f64) < 0.5 {
+                int
             } else {
-                byte + 1
+                int + 1
             }
         }
 
@@ -438,13 +438,13 @@ mod tests {
             // print!("/// ### Exponent {exponent}:\n///\n/// ```text,ignore\n/// ");
 
             for mantissa in 0b00000..=0b11111 {
-                let positive = QFloat8::<6, 12, 6, 4, 3>((exponent << 5) | mantissa);
+                let positive = QFloat8::<11, 40, 30, 20, 10>((exponent << 5) | mantissa);
                 let negative = -positive;
 
                 // The same number can be encoded differently so we should check
                 // float representations here.
-                assert_eq!(qf8_2::from_float(positive.as_f32()).as_f32(), positive.as_f32());
-                assert_eq!(qf8_2::from_float(negative.as_f32()).as_f32(), negative.as_f32());
+                assert_eq!(qf8_1::from_float(positive.as_f32()).as_f32(), positive.as_f32());
+                assert_eq!(qf8_1::from_float(negative.as_f32()).as_f32(), negative.as_f32());
 
                 // print!("{:.08}, ", positive.as_f32());
             }
