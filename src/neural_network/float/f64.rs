@@ -37,6 +37,11 @@ impl Float for f64 {
         ])
     }
 
+    #[inline]
+    fn precision_error(_: f64) -> f64 {
+        0.0
+    }
+
     // =================================== Arithmetic functions ===================================
 
     #[inline]

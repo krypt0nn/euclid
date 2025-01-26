@@ -60,6 +60,14 @@ pub trait Float:
     /// Decode float from bytes representation.
     fn from_bytes(bytes: &[u8]) -> Self;
 
+    /// Check precision error after storing given float
+    /// in the current type.
+    ///
+    /// Returns `new_float - float` value.
+    fn precision_error(float: f64) -> f64 {
+        Self::from_float(float).as_f64() - float
+    }
+
     // =================================== Arithmetic functions ===================================
 
     /// Returns true if self has a positive sign, including +0.0.
