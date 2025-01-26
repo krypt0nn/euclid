@@ -200,8 +200,8 @@ fn test_neurons_layer_backward_propagation() {
     // Create simple 2-neuron layer.
     let mut layer = Layer32::<1, 2>::sigmoid();
 
-    // Train it on 6 examples for 500 epochs.
-    for _ in 0..500 {
+    // Train it on 6 examples for 100 epochs.
+    for _ in 0..100 {
         layer.backward(&[1.0], &[1.0, 0.0], 0.1);
         layer.backward(&[0.0], &[0.0, 1.0], 0.1);
         layer.backward(&[0.6], &[1.0, 0.0], 0.1);
@@ -276,8 +276,8 @@ fn test_linked_neurons_layers_backward_propagation() {
         ([ 0.0,  0.0], 1.0)
     ];
 
-    // Train both layers on given samples for 500 epochs.
-    for _ in 0..1000 {
+    // Train both layers on given samples for 100 epochs.
+    for _ in 0..100 {
         for (input, output) in examples {
             let hidden_output = input_layer.forward(&input);
 

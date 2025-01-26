@@ -18,6 +18,9 @@ pub type Neuron64<const INPUT_SIZE: usize> = Neuron<INPUT_SIZE, f64>;
 /// output is given neuron could be trained to return it for
 /// provided inputs using technique called backward propagation.
 ///
+/// This struct has built-in AdamW backpropagation optimization
+/// which is enabled by default.
+///
 /// ```
 /// use crate::prelude::*;
 ///
@@ -41,6 +44,61 @@ pub struct Neuron<const INPUT_SIZE: usize, F: Float> {
 
     /// Value added to the weighted input sum.
     bias: F,
+
+    /// AdamW backpropagation optimization momentums for weights.
+    adamw_weights_m: [F; INPUT_SIZE],
+
+    /// AdamW backpropagation optimization momentum for bias.
+    adamw_bias_m: F,
+
+    /// AdamW backpropagation optimization squared momentums for weights.
+    adamw_weights_v: [F; INPUT_SIZE],
+
+    /// AdamW backpropagation optimization squared momentum for bias.
+    adamw_bias_v: F,
+
+    /// AdamW backpropagation optimization timestep.
+    ///
+    /// Shows amount of already passed backpropagations.
+    ///
+    /// Chosen to be i32 because it's used in `Float::powi` function,
+    /// but technically it's unsigned value.
+    adamw_t: i32,
+
+    /// When enabled neuron will use AdamW optimizer for weights and bias
+    /// updating during backpropagation which can improve learning quality
+    /// in cose of increased computation and memory overhead.
+    adamw_use_optimizer: bool,
+
+    /// AdamW backpropagation optimization hyperparameter.
+    ///
+    /// Beta 1 controls the exponential moving average of the gradient.
+    /// A high value of beta 1 means that the optimizer will give more weight
+    /// to the previous gradients, while a low value means that the optimizer
+    /// will give more weight to the current gradient.
+    ///
+    /// Recommended values: 0.9, 0.95, 0.99.
+    adamw_beta1: F,
+
+    /// AdamW backpropagation optimization hyperparameter.
+    ///
+    /// Beta 2 controls the exponential moving average of the squared gradient.
+    /// A high value of beta 2 means that the optimizer will give more weight
+    /// to the previous squared gradients, while a low value means that the optimizer
+    /// will give more weight to the current squared gradient.
+    ///
+    /// Recommended values: 0.999, 0.995, 0.99.
+    adamw_beta2: F,
+
+    /// AdamW backpropagation optimization hyperparameter.
+    ///
+    /// Weight decay is a regularization technique that adds a penalty term
+    /// to the loss function to discourage large weights. A high value
+    /// of weight decay means that the optimizer will penalize large weights
+    /// more heavily.
+    ///
+    /// Recommended values: 0.01, 0.001, 0.0001.
+    adamw_lambda: F,
 
     /// Activation function.
     activation_function: fn(F) -> F,
@@ -78,6 +136,20 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         Self {
             weights,
             bias,
+
+            adamw_weights_m: [F::ZERO; INPUT_SIZE],
+            adamw_bias_m: F::ZERO,
+
+            adamw_weights_v: [F::ZERO; INPUT_SIZE],
+            adamw_bias_v: F::ZERO,
+
+            adamw_t: 0,
+            adamw_use_optimizer: true,
+
+            adamw_beta1: F::from_float(0.9),
+            adamw_beta2: F::from_float(0.999),
+            adamw_lambda: F::from_float(0.01),
+
             activation_function,
             activation_function_derivative,
             loss_function,
@@ -148,6 +220,47 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         self
     }
 
+    #[inline]
+    /// Enable or disable built-in AdamW optimizer.
+    ///
+    /// Enabled by default. Disable if you care about backpropagation
+    /// speed more than the final result quality.
+    pub fn with_adamw_optimizer(mut self, use_optimizer: bool) -> Self {
+        self.adamw_use_optimizer = use_optimizer;
+
+        self
+    }
+
+    #[inline]
+    /// Set AdamW beta 1 hyperparameter.
+    ///
+    /// Do not change it if you're unsure what it means.
+    pub fn with_adamw_beta1(mut self, adamw_beta1: F) -> Self {
+        self.adamw_beta1 = adamw_beta1;
+
+        self
+    }
+
+    #[inline]
+    /// Set AdamW beta 2 hyperparameter.
+    ///
+    /// Do not change it if you're unsure what it means.
+    pub fn with_adamw_beta2(mut self, adamw_beta2: F) -> Self {
+        self.adamw_beta2 = adamw_beta2;
+
+        self
+    }
+
+    #[inline]
+    /// Set AdamW lambda hyperparameter.
+    ///
+    /// Do not change it if you're unsure what it means.
+    pub fn with_adamw_lambda(mut self, adamw_lambda: F) -> Self {
+        self.adamw_lambda = adamw_lambda;
+
+        self
+    }
+
     /// Convert float type of current neuron to another one (quantize it).
     ///
     /// Note that depending on the actual values of weights and bias
@@ -155,8 +268,21 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     pub fn quantize<T: Float>(&self) -> Neuron<INPUT_SIZE, T> {
         unsafe {
             Neuron {
-                weights: core::array::from_fn::<T, INPUT_SIZE, _>(|i| T::from_float(self.weights[i])),
+                weights: self.weights.map(T::from_float),
                 bias: T::from_float(self.bias),
+
+                adamw_weights_m: self.adamw_weights_m.map(T::from_float),
+                adamw_bias_m: T::from_float(self.adamw_bias_m),
+
+                adamw_weights_v: self.adamw_weights_v.map(T::from_float),
+                adamw_bias_v: T::from_float(self.adamw_bias_v),
+
+                adamw_t: self.adamw_t,
+                adamw_use_optimizer: self.adamw_use_optimizer,
+
+                adamw_beta1: T::from_float(self.adamw_beta1),
+                adamw_beta2: T::from_float(self.adamw_beta2),
+                adamw_lambda: T::from_float(self.adamw_lambda),
 
                 // Transmute activation and loss functions from fn(F) into fn(T).
                 // This is safe because these are general Float numbers (trait impls).
@@ -184,7 +310,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
     /// Calculate sum of inputs multiplied by appropriate weights
     /// plus the neuron's bias.
-    pub fn calc_weighted_input(&self, input: &[F; INPUT_SIZE]) -> F {
+    pub fn make_weighted_input(&self, input: &[F; INPUT_SIZE]) -> F {
         let mut output = F::ZERO;
         let mut i = 0;
 
@@ -217,13 +343,37 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     #[inline]
     /// Calculate activated output of the neuron (perform forward propagation).
     pub fn forward(&self, input: &[F; INPUT_SIZE]) -> F {
-        (self.activation_function)(self.calc_weighted_input(input))
+        (self.activation_function)(self.make_weighted_input(input))
     }
 
     #[inline]
     /// Calculate loss function value.
     pub fn loss(&self, actual_output: F, expected_output: F) -> F {
         (self.loss_function)(actual_output, expected_output)
+    }
+
+    /// Update given value using AdamW optimizer.
+    ///
+    /// Returns `(updated_value, updated_adamw_m, updated_adamw_v)`.
+    fn adamw_optimize(&self, mut value: F, learn_rate: F, gradient: F, mut adamw_m: F, mut adamw_v: F) -> (F, F, F) {
+        // Skip AdamW optimization if it's disabled.
+        if !self.adamw_use_optimizer {
+            return (value - value * learn_rate * gradient, adamw_m, adamw_v);
+        }
+
+        // Update moving averages.
+        adamw_m = self.adamw_beta1 * adamw_m + (F::ONE - self.adamw_beta1) * gradient;
+        adamw_v = self.adamw_beta2 * adamw_v + (F::ONE - self.adamw_beta2) * gradient.powi(2);
+
+        // FIXME: powers of betas are re-calculated for each weight and bias which is a huge overhead.
+        // FIXME: moreover it's done for each neuron within multiple neurons network which is even huger overhead!
+        let adamw_weighted_m = adamw_m / (F::ONE - self.adamw_beta1.powi(self.adamw_t));
+        let adamw_weighted_v = adamw_v / (F::ONE - self.adamw_beta2.powi(self.adamw_t));
+
+        // Update value using gradient and calculated AdamW optimizer values.
+        value -= learn_rate * adamw_weighted_m / (adamw_weighted_v.sqrt() + F::EPSILON) + learn_rate * self.adamw_lambda * value;
+
+        (value, adamw_m, adamw_v)
     }
 
     /// Update weights and bias of the neuron using given inputs,
@@ -239,7 +389,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         learn_rate: F
     ) -> [F; INPUT_SIZE] {
         // Calculate argument of the activation function.
-        let argument = self.calc_weighted_input(input);
+        let argument = self.make_weighted_input(input);
 
         // Calculate activated value returned by the neuron.
         let actual_output = (self.activation_function)(argument);
@@ -251,45 +401,27 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         // Prepare map of the backward propagation gradients.
         let mut gradients = [F::ZERO; INPUT_SIZE];
 
-        // Update bias using calculated gradient.
-        self.bias -= learn_rate * gradient;
-
-        // Update weights of the neuron's inputs using calculated delta
-        // multiplied by the corresponding input, and prepare gradients map which
-        // could be used by the previous neurons for backward propagations.
-        let mut i = 0;
-
-        // Perform operations by 8 at a time.
-        // This hints compiler to apply advanced optimizations.
-        while i + 8 < INPUT_SIZE {
-            gradients[i]     = gradient * self.weights[i];
-            gradients[i + 1] = gradient * self.weights[i + 1];
-            gradients[i + 2] = gradient * self.weights[i + 2];
-            gradients[i + 3] = gradient * self.weights[i + 3];
-            gradients[i + 4] = gradient * self.weights[i + 4];
-            gradients[i + 5] = gradient * self.weights[i + 5];
-            gradients[i + 6] = gradient * self.weights[i + 6];
-            gradients[i + 7] = gradient * self.weights[i + 7];
-
-            self.weights[i]     -= learn_rate * gradient * input[i];
-            self.weights[i + 1] -= learn_rate * gradient * input[i + 1];
-            self.weights[i + 2] -= learn_rate * gradient * input[i + 2];
-            self.weights[i + 3] -= learn_rate * gradient * input[i + 3];
-            self.weights[i + 4] -= learn_rate * gradient * input[i + 4];
-            self.weights[i + 5] -= learn_rate * gradient * input[i + 5];
-            self.weights[i + 6] -= learn_rate * gradient * input[i + 6];
-            self.weights[i + 7] -= learn_rate * gradient * input[i + 7];
-
-            i += 8;
+        // Update AdamW optimizer timestep.
+        if self.adamw_use_optimizer {
+            self.adamw_t += 1;
         }
 
-        // Do everything else.
-        while i < INPUT_SIZE {
+        // Update bias using calculated gradient and AdamW optimizer values.
+        (self.bias, self.adamw_bias_m, self.adamw_bias_v) = self.adamw_optimize(self.bias, learn_rate, gradient, self.adamw_bias_m, self.adamw_bias_v);
+
+        // Update weights of the neuron's inputs using calculated gradient
+        // multiplied by the corresponding input, and prepare gradients map which
+        // could be used by the previous neurons for backward propagations.
+        for i in 0..INPUT_SIZE {
             gradients[i] = gradient * self.weights[i];
 
-            self.weights[i] -= learn_rate * gradient * input[i];
-
-            i += 1;
+            (self.weights[i], self.adamw_weights_m[i], self.adamw_weights_v[i]) = self.adamw_optimize(
+                self.weights[i],
+                learn_rate,
+                gradient * input[i],
+                self.adamw_weights_m[i],
+                self.adamw_weights_v[i]
+            );
         }
 
         gradients
@@ -308,7 +440,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         learn_rate: F
     ) -> [F; INPUT_SIZE] {
         // Calculate argument of the activation function.
-        let argument = self.calc_weighted_input(input);
+        let argument = self.make_weighted_input(input);
 
         // Calculate gradient of the current neuron using gradient
         // of the connected forward neurons.
@@ -317,45 +449,27 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         // Prepare map of the backward propagation gradients.
         let mut gradients = [F::ZERO; INPUT_SIZE];
 
-        // Update bias using calculated gradient.
-        self.bias -= learn_rate * gradient;
-
-        // Update weights of the neuron's inputs using calculated delta
-        // multiplied by the corresponding input, and prepare gradients map which
-        // could be used by the previous neurons for backward propagations.
-        let mut i = 0;
-
-        // Perform operations by 8 at a time.
-        // This hints compiler to apply advanced optimizations.
-        while i + 8 < INPUT_SIZE {
-            gradients[i]     = gradient * self.weights[i];
-            gradients[i + 1] = gradient * self.weights[i + 1];
-            gradients[i + 2] = gradient * self.weights[i + 2];
-            gradients[i + 3] = gradient * self.weights[i + 3];
-            gradients[i + 4] = gradient * self.weights[i + 4];
-            gradients[i + 5] = gradient * self.weights[i + 5];
-            gradients[i + 6] = gradient * self.weights[i + 6];
-            gradients[i + 7] = gradient * self.weights[i + 7];
-
-            self.weights[i]     -= learn_rate * gradient * input[i];
-            self.weights[i + 1] -= learn_rate * gradient * input[i + 1];
-            self.weights[i + 2] -= learn_rate * gradient * input[i + 2];
-            self.weights[i + 3] -= learn_rate * gradient * input[i + 3];
-            self.weights[i + 4] -= learn_rate * gradient * input[i + 4];
-            self.weights[i + 5] -= learn_rate * gradient * input[i + 5];
-            self.weights[i + 6] -= learn_rate * gradient * input[i + 6];
-            self.weights[i + 7] -= learn_rate * gradient * input[i + 7];
-
-            i += 8;
+        // Update AdamW optimizer timestep.
+        if self.adamw_use_optimizer {
+            self.adamw_t += 1;
         }
 
-        // Do everything else.
-        while i < INPUT_SIZE {
+        // Update bias using calculated gradient and AdamW optimizer values.
+        (self.bias, self.adamw_bias_m, self.adamw_bias_v) = self.adamw_optimize(self.bias, learn_rate, gradient, self.adamw_bias_m, self.adamw_bias_v);
+
+        // Update weights of the neuron's inputs using calculated gradient
+        // multiplied by the corresponding input, and prepare gradients map which
+        // could be used by the previous neurons for backward propagations.
+        for i in 0..INPUT_SIZE {
             gradients[i] = gradient * self.weights[i];
 
-            self.weights[i] -= learn_rate * gradient * input[i];
-
-            i += 1;
+            (self.weights[i], self.adamw_weights_m[i], self.adamw_weights_v[i]) = self.adamw_optimize(
+                self.weights[i],
+                learn_rate,
+                gradient * input[i],
+                self.adamw_weights_m[i],
+                self.adamw_weights_v[i]
+            );
         }
 
         gradients
@@ -369,8 +483,8 @@ fn test_neuron_backward_propagation() {
     // Create new neuron which is supposed to calculate sum of 2 input numbers.
     let mut neuron = Neuron32::linear();
 
-    // Train this neuron for 1000 epohs on given examples.
-    for _ in 0..1000 {
+    // Train this neuron for 100 epohs on given examples.
+    for _ in 0..100 {
         neuron.backward(&[0.0, 1.0], 1.0, 0.03);
         neuron.backward(&[2.0, 0.0], 2.0, 0.03);
         neuron.backward(&[1.0, 1.0], 2.0, 0.03);
