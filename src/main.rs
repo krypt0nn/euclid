@@ -1,3 +1,6 @@
+#![feature(generic_const_exprs)]
+#![allow(incomplete_features)]
+
 use std::collections::HashSet;
 
 pub mod neural_network;
@@ -127,17 +130,50 @@ impl<const EMBEDDING_SIZE: usize> WordVecModel<EMBEDDING_SIZE> {
 fn main() {
     use crate::prelude::*;
 
-    // Create new neuron which is supposed to calculate sum of 2 input numbers.
-    let mut neuron = Neuron64::<2>::linear();
+    // Make 2 identical neurons.
+    let mut neuron_1 = Neuron64::linear();
+    let mut neuron_2 = neuron_1.clone();
 
-    // Train this neuron for 100 epohs on given examples.
+    // Make default backpropagation policy.
+    let mut policy_1 = Backpropagation::default();
+
+    // Policy with cyclic schedule and warmup period.
+    let mut policy_2 = Backpropagation::default()
+        .with_warmup_duration(10)
+        .with_cycle_period(15)
+        .with_cycle_radius(0.015);
+
+    // let mut policy_2 = Backpropagation::explore(|policy| {
+    //     let mut neuron = neuron_2.clone();
+
+    //     for _ in 0..20 {
+    //         neuron.backward(&[0.0, 1.0], 1.0, policy);
+    //         neuron.backward(&[2.0, 0.0], 2.0, policy);
+    //         neuron.backward(&[1.0, 1.0], 2.0, policy);
+    //         neuron.backward(&[2.0, 1.0], 3.0, policy);
+    //     }
+
+    //     neuron.loss(neuron.forward(&[3.0, -1.0]), 2.0).as_f64()
+    // });
+
+    dbg!(&policy_1, &policy_2);
+
     for _ in 0..100 {
-        neuron.backward(&[0.0, 1.0], 1.0, 0.15);
-        neuron.backward(&[2.0, 0.0], 2.0, 0.15);
-        neuron.backward(&[1.0, 1.0], 2.0, 0.15);
-        neuron.backward(&[2.0, 1.0], 3.0, 0.15);
+        neuron_1.backward(&[0.0, 1.0], 1.0, &mut policy_1);
+        neuron_1.backward(&[2.0, 0.0], 2.0, &mut policy_1);
+        neuron_1.backward(&[1.0, 1.0], 2.0, &mut policy_1);
+        neuron_1.backward(&[2.0, 1.0], 3.0, &mut policy_1);
+
+        neuron_2.backward(&[0.0, 1.0], 1.0, &mut policy_2);
+        neuron_2.backward(&[2.0, 0.0], 2.0, &mut policy_2);
+        neuron_2.backward(&[1.0, 1.0], 2.0, &mut policy_2);
+        neuron_2.backward(&[2.0, 1.0], 3.0, &mut policy_2);
+
+        let loss_1 = neuron_1.loss(neuron_1.forward(&[3.0, -1.0]), 2.0);
+        let loss_2 = neuron_2.loss(neuron_2.forward(&[3.0, -1.0]), 2.0);
+
+        println!("loss 1: {loss_1:.8}, loss 2: {loss_2:.8}");
     }
 
-    // Validate trained neuron.
-    assert!((neuron.forward(&[3.0, 4.0]) - 7.0).abs() < 0.5);
+    dbg!(neuron_1, neuron_2);
 }

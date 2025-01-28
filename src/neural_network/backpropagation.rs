@@ -144,17 +144,12 @@ impl<const SIZE: usize, F: Float> Backpropagation<SIZE, F> {
     ///
     /// Make sure to use the same model with its *initial* state
     /// to compare impact of learn rate change.
-    pub fn explore(exploration_loss: impl Fn(&Self) -> f64) -> Self {
+    pub fn explore(exploration_loss: impl Fn(&mut Self) -> f64) -> Self {
         const SMOOTH_WINDOW: usize = 10;
         const SMOOTH_WINDOW_FLOAT: f64 = SMOOTH_WINDOW as f64;
 
         let mut learn_rate = F::EPSILON;
         let learn_rate_step = F::from_float(2.0);
-
-        // Create backpropagation policy with default values and set
-        // its learn rate to zero.
-        let mut backpropagation = Self::default()
-            .with_learn_rate(learn_rate);
 
         // Remember last 10 loss values.
         let mut losses = [1.0; SMOOTH_WINDOW];
@@ -163,27 +158,34 @@ impl<const SIZE: usize, F: Float> Backpropagation<SIZE, F> {
         #[allow(clippy::needless_range_loop)]
         // Fill first 10 loss values.
         for i in 0..10 {
+            // Create backpropagation policy with default values and set
+            // its learn rate to zero.
+            let mut backpropagation = Self::default()
+                .with_learn_rate(learn_rate);
+
             // Calculate loss for the current learn rate value.
-            losses[i] = exploration_loss(&backpropagation) / SMOOTH_WINDOW_FLOAT;
+            losses[i] = exploration_loss(&mut backpropagation) / SMOOTH_WINDOW_FLOAT;
 
             avg_loss += losses[i];
 
             // Increase learn rate and update the policy.
             learn_rate *= learn_rate_step;
-            backpropagation = backpropagation.with_learn_rate(learn_rate);
         }
 
         // Keep increasing learn rate until we see the spike in loss value.
         while learn_rate != F::MAX {
+            // Create backpropagation policy with default values and set
+            // its learn rate to zero.
+            let mut backpropagation = Self::default()
+                .with_learn_rate(learn_rate);
+
             // Calculate loss for the current learn rate value.
-            let mut loss = exploration_loss(&backpropagation);
+            let mut loss = exploration_loss(&mut backpropagation);
 
             // Break exploration if found loss is greater than 1.5 of moving average.
             if loss > avg_loss * 1.5 {
                 // Use quarter of found learn rate for the final result.
-                backpropagation = backpropagation.with_learn_rate(learn_rate * F::HALF * F::HALF);
-
-                break;
+                return Self::default().with_learn_rate(learn_rate * F::HALF * F::HALF);
             }
 
             // Update moving average.
@@ -200,10 +202,10 @@ impl<const SIZE: usize, F: Float> Backpropagation<SIZE, F> {
 
             // Increase learn rate and update the policy.
             learn_rate *= learn_rate_step;
-            backpropagation = backpropagation.with_learn_rate(learn_rate);
         }
 
-        backpropagation
+        // Return default policy when failed to opimize.
+        Self::default()
     }
 
     #[inline]
@@ -262,7 +264,56 @@ impl<const SIZE: usize, F: Float> Backpropagation<SIZE, F> {
         self
     }
 
+    /// Call given callback with a slice of current backpropagation policy struct
+    /// and update current one after the callback execution.
+    ///
+    /// This method **will not** increase timestep. You have to do this manually
+    /// by calling `Backpropagation::next_step` method before updating values
+    /// with the windowed backpropagation struct.
+    pub fn window<const LEN: usize, T>(&mut self, offset: usize, mut callback: impl FnMut(&mut Backpropagation<LEN, F>) -> T) -> T {
+        let mut windowed_backpropagation = Backpropagation {
+            timestep: self.timestep,
+
+            adamw_m: core::array::from_fn::<_, LEN, _>(|i| self.adamw_m[offset + i]),
+            adamw_v: core::array::from_fn::<_, LEN, _>(|i| self.adamw_v[offset + i]),
+
+            adamw_beta1: self.adamw_beta1,
+            adamw_beta2: self.adamw_beta2,
+            adamw_lambda: self.adamw_lambda,
+
+            warmup_duration: self.warmup_duration,
+
+            cycle_radius: self.cycle_radius,
+            cycle_period: self.cycle_period,
+
+            learn_rate: self.learn_rate
+        };
+
+        let output = callback(&mut windowed_backpropagation);
+
+        self.adamw_m[offset..offset + LEN].copy_from_slice(&windowed_backpropagation.adamw_m);
+        self.adamw_v[offset..offset + LEN].copy_from_slice(&windowed_backpropagation.adamw_v);
+
+        self.timestep += 1;
+
+        output
+    }
+
+    /// Increase backpropagation timestep by one.
+    ///
+    /// This method will return previous timestep value.
+    pub fn next_step(&mut self) -> u32 {
+        let prev = self.timestep;
+
+        self.timestep += 1;
+
+        prev
+    }
+
     /// Backpropagate given values using calculated gradients.
+    ///
+    /// This method will increase timestep value by 1 before
+    /// updating given values.
     pub fn backpropagate(&mut self, mut values: [F; SIZE], gradients: [F; SIZE]) -> [F; SIZE] {
         self.timestep += 1;
 
