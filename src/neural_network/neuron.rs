@@ -60,6 +60,13 @@ pub struct Neuron<const INPUT_SIZE: usize, F: Float> {
     loss_function_derivative: fn(F, F) -> F
 }
 
+impl<const INPUT_SIZE: usize, F: Float> Default for Neuron<INPUT_SIZE, F> {
+    #[inline]
+    fn default() -> Self {
+        Self::sigmoid()
+    }
+}
+
 impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     /// Construct new neuron with randomly generated input
     /// weights and bias, and given activation function and
@@ -110,6 +117,65 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         Self::new(tanh, tanh_derivative, cross_entropy, cross_entropy_derivative)
     }
 
+    /// Return neuron with `sigmoid` activation function
+    /// and `cross_entropy` loss function, and parameters
+    /// read from the given bytes slice.
+    ///
+    /// Use `Neuron::with_activation_function` and
+    /// `Neuron::with_loss_function` to change them
+    /// to different options.
+    pub fn from_bytes(bytes: &[u8; (INPUT_SIZE + 1) * F::BYTES]) -> Self {
+        let mut weights = [F::ZERO; INPUT_SIZE];
+        let mut bias = [0; F::BYTES];
+
+        bias.copy_from_slice(&bytes[..F::BYTES]);
+
+        let mut i = F::BYTES;
+        let mut j = 0;
+
+        while i < (INPUT_SIZE + 1) * F::BYTES {
+            let mut weight = [0; F::BYTES];
+
+            weight.copy_from_slice(&bytes[i..i + F::BYTES]);
+
+            weights[j] = F::from_bytes(&weight);
+
+            i += F::BYTES;
+            j += 1;
+        }
+
+        Self {
+            weights,
+            bias: F::from_bytes(&bias),
+
+            activation_function: sigmoid,
+            activation_function_derivative: sigmoid_derivative,
+            loss_function: cross_entropy,
+            loss_function_derivative: cross_entropy_derivative
+        }
+    }
+
+    /// Return bytes slice with current neuron's params.
+    ///
+    /// Use `Neuron::from_bytes` to restore it.
+    pub fn to_bytes(&self) -> [u8; (INPUT_SIZE + 1) * F::BYTES] {
+        let mut bytes = [0; (INPUT_SIZE + 1) * F::BYTES];
+
+        bytes[..F::BYTES].copy_from_slice(&self.bias.to_bytes());
+
+        let mut i = F::BYTES;
+        let mut j = 0;
+
+        while i < (INPUT_SIZE + 1) * F::BYTES {
+            bytes[i..i + F::BYTES].copy_from_slice(&self.weights[j].to_bytes());
+
+            i += F::BYTES;
+            j += 1;
+        }
+
+        bytes
+    }
+
     #[inline]
     /// Change weights of the neuron's inputs.
     pub fn with_weights(mut self, weights: [F; INPUT_SIZE]) -> Self {
@@ -150,6 +216,12 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         self.loss_function_derivative = loss_function_derivative;
 
         self
+    }
+
+    #[inline]
+    /// Return params of the current neuron (weights and bias).
+    pub fn params(&self) -> (&[F; INPUT_SIZE], &F) {
+        (&self.weights, &self.bias)
     }
 
     /// Convert float type of current neuron to another one (quantize it).
@@ -324,6 +396,20 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
         backward_gradients
     }
+}
+
+#[test]
+/// Test neuron params conversion from and to bytes slice.
+fn test_neuron_bytes() {
+    let neuron = Neuron64::<8>::sigmoid();
+
+    let bytes = neuron.to_bytes();
+
+    assert_eq!(bytes.len(), 9 * 8);
+
+    let restored = Neuron64::<8>::from_bytes(&bytes);
+
+    assert_eq!(neuron.params(), restored.params());
 }
 
 #[test]

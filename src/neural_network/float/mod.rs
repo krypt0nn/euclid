@@ -45,6 +45,9 @@ pub trait Float:
     /// larger representable number.
     const EPSILON: Self;
 
+    /// Size of the float in bytes.
+    const BYTES: usize;
+
     /// Represent current float as machine f32.
     fn as_f32(&self) -> f32;
 
@@ -55,10 +58,10 @@ pub trait Float:
     fn from_float<F: Float>(float: F) -> Self;
 
     /// Convert current float to bytes representation.
-    fn to_bytes(&self) -> Box<[u8]>;
+    fn to_bytes(&self) -> [u8; Self::BYTES];
 
     /// Decode float from bytes representation.
-    fn from_bytes(bytes: &[u8]) -> Self;
+    fn from_bytes(bytes: &[u8; Self::BYTES]) -> Self;
 
     /// Check precision error after storing given float
     /// in the current type.

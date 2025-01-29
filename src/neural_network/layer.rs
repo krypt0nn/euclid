@@ -88,6 +88,12 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
         Self::new(tanh, tanh_derivative, cross_entropy, cross_entropy_derivative)
     }
 
+    #[inline]
+    /// Return neurons of the current layer.
+    pub fn neurons(&self) -> &[Neuron<INPUT_SIZE, F>; OUTPUT_SIZE] {
+        &self.neurons
+    }
+
     /// Convert float type of all stored neurons to another one (quantize it).
     ///
     /// Note that depending on the actual values of weights and biases
@@ -143,7 +149,7 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
         &mut self,
         input: &[F; INPUT_SIZE],
         expected_output: &[F; OUTPUT_SIZE],
-        policy: &mut Backpropagation<{ OUTPUT_SIZE * (INPUT_SIZE + 1) }, F>
+        policy: &mut Backpropagation<{ (INPUT_SIZE + 1) * OUTPUT_SIZE }, F>
     ) -> [F; INPUT_SIZE] {
         let mut gradients = [F::ZERO; INPUT_SIZE];
 

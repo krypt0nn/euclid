@@ -339,6 +339,8 @@ impl<const M: u32, const R1: u32, const R2: u32, const R3: u32, const R4: u32> F
     const MAX: Self     = QFloat8::<M, R1, R2, R3, R4>::MAX;
     const EPSILON: Self = QFloat8::<M, R1, R2, R3, R4>::EPSILON;
 
+    const BYTES: usize = 1;
+
     #[inline]
     fn as_f32(&self) -> f32 {
         Self::into_f64(self) as f32
@@ -355,14 +357,12 @@ impl<const M: u32, const R1: u32, const R2: u32, const R3: u32, const R4: u32> F
     }
 
     #[inline]
-    fn to_bytes(&self) -> Box<[u8]> {
-        Box::new([self.0])
+    fn to_bytes(&self) -> [u8; Self::BYTES] {
+        [self.0]
     }
 
     #[inline]
-    fn from_bytes(bytes: &[u8]) -> Self {
-        debug_assert_eq!(bytes.len(), 1, "QFloat8 must be stored in 1 byte");
-
+    fn from_bytes(bytes: &[u8; Self::BYTES]) -> Self {
         QFloat8(bytes[0])
     }
 

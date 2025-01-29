@@ -1,4 +1,4 @@
-#![feature(generic_const_exprs)]
+#![feature(generic_const_items, generic_const_exprs)]
 #![allow(incomplete_features)]
 
 use std::collections::HashSet;
@@ -139,8 +139,8 @@ fn main() {
 
     // Policy with cyclic schedule and warmup period.
     let mut policy_2 = Backpropagation::default()
-        .with_warmup_duration(10)
-        .with_cycle_period(15)
+        .with_warmup_duration(20)
+        .with_cycle_period(30)
         .with_cycle_radius(0.015);
 
     // let mut policy_2 = Backpropagation::explore(|policy| {

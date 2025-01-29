@@ -9,6 +9,8 @@ impl Float for f32 {
     const MAX: Self = f32::MAX;
     const EPSILON: Self = f32::EPSILON;
 
+    const BYTES: usize = 4;
+
     #[inline]
     fn as_f32(&self) -> f32 {
         *self
@@ -24,16 +26,14 @@ impl Float for f32 {
         float.as_f32()
     }
 
-    fn to_bytes(&self) -> Box<[u8]> {
-        Box::new(self.to_be_bytes())
+    #[inline]
+    fn to_bytes(&self) -> [u8; Self::BYTES] {
+        self.to_be_bytes()
     }
 
-    fn from_bytes(bytes: &[u8]) -> Self {
-        debug_assert_eq!(bytes.len(), 4, "f32 must be stored in 4 bytes");
-
-        f32::from_be_bytes([
-            bytes[0], bytes[1], bytes[2], bytes[3]
-        ])
+    #[inline]
+    fn from_bytes(bytes: &[u8; Self::BYTES]) -> Self {
+        f32::from_be_bytes(*bytes)
     }
 
     #[inline]

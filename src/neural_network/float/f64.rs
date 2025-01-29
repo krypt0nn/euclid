@@ -9,6 +9,8 @@ impl Float for f64 {
     const MAX: Self = f64::MAX;
     const EPSILON: Self = f64::EPSILON;
 
+    const BYTES: usize = 8;
+
     #[inline]
     fn as_f32(&self) -> f32 {
         *self as f32
@@ -24,17 +26,14 @@ impl Float for f64 {
         float.as_f64()
     }
 
-    fn to_bytes(&self) -> Box<[u8]> {
-        Box::new(self.to_be_bytes())
+    #[inline]
+    fn to_bytes(&self) -> [u8; Self::BYTES] {
+        self.to_be_bytes()
     }
 
-    fn from_bytes(bytes: &[u8]) -> Self {
-        debug_assert_eq!(bytes.len(), 8, "f64 must be stored in 8 bytes");
-
-        f64::from_be_bytes([
-            bytes[0], bytes[1], bytes[2], bytes[3],
-            bytes[4], bytes[5], bytes[6], bytes[7]
-        ])
+    #[inline]
+    fn from_bytes(bytes: &[u8; Self::BYTES]) -> Self {
+        f64::from_be_bytes(*bytes)
     }
 
     #[inline]
