@@ -155,8 +155,6 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
 
         let div = F::from_float(INPUT_SIZE as f32);
 
-        policy.next_step();
-
         #[allow(clippy::needless_range_loop)]
         for i in 0..OUTPUT_SIZE {
             let neuron_gradients = policy.window::<{ INPUT_SIZE + 1 }, _>((INPUT_SIZE + 1) * i, |windowed_policy| {
@@ -181,13 +179,11 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
         &mut self,
         input: &[F; INPUT_SIZE],
         output_gradient: &[F; OUTPUT_SIZE],
-        policy: &mut Backpropagation<{ INPUT_SIZE + 1 }, F>
+        policy: &mut Backpropagation<{ (INPUT_SIZE + 1) * OUTPUT_SIZE }, F>
     ) -> [F; INPUT_SIZE] {
         let mut gradients = [F::ZERO; INPUT_SIZE];
 
         let div = F::from_float(INPUT_SIZE as f32);
-
-        policy.next_step();
 
         #[allow(clippy::needless_range_loop)]
         for i in 0..OUTPUT_SIZE {

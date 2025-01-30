@@ -173,7 +173,7 @@ impl<const SIZE: usize, F: Float> Backpropagation<SIZE, F> {
         }
 
         // Keep increasing learn rate until we see the spike in loss value.
-        while learn_rate != F::MAX {
+        while learn_rate.as_f32() < 1.0 {
             // Create backpropagation policy with default values and set
             // its learn rate to zero.
             let mut backpropagation = Self::default()
@@ -264,12 +264,19 @@ impl<const SIZE: usize, F: Float> Backpropagation<SIZE, F> {
         self
     }
 
+    /// Increase backpropagation timestep by one.
+    ///
+    /// This method will return previous timestep value.
+    pub fn next_step(&mut self) -> u32 {
+        let prev = self.timestep;
+
+        self.timestep += 1;
+
+        prev
+    }
+
     /// Call given callback with a slice of current backpropagation policy struct
     /// and update current one after the callback execution.
-    ///
-    /// This method **will not** increase timestep. You have to do this manually
-    /// by calling `Backpropagation::next_step` method before updating values
-    /// with the windowed backpropagation struct.
     pub fn window<const LEN: usize, T>(&mut self, offset: usize, mut callback: impl FnMut(&mut Backpropagation<LEN, F>) -> T) -> T {
         let mut windowed_backpropagation = Backpropagation {
             timestep: self.timestep,
@@ -294,29 +301,11 @@ impl<const SIZE: usize, F: Float> Backpropagation<SIZE, F> {
         self.adamw_m[offset..offset + LEN].copy_from_slice(&windowed_backpropagation.adamw_m);
         self.adamw_v[offset..offset + LEN].copy_from_slice(&windowed_backpropagation.adamw_v);
 
-        self.timestep += 1;
-
         output
     }
 
-    /// Increase backpropagation timestep by one.
-    ///
-    /// This method will return previous timestep value.
-    pub fn next_step(&mut self) -> u32 {
-        let prev = self.timestep;
-
-        self.timestep += 1;
-
-        prev
-    }
-
     /// Backpropagate given values using calculated gradients.
-    ///
-    /// This method will increase timestep value by 1 before
-    /// updating given values.
     pub fn backpropagate(&mut self, mut values: [F; SIZE], gradients: [F; SIZE]) -> [F; SIZE] {
-        self.timestep += 1;
-
         // Learn rate warmup.
         let learn_rate = if self.timestep < self.warmup_duration {
             self.learn_rate * F::from_float(self.timestep as f32 / self.warmup_duration as f32)
@@ -346,16 +335,19 @@ impl<const SIZE: usize, F: Float> Backpropagation<SIZE, F> {
 
         // Update given values.
         for i in 0..SIZE {
-            // Update AdamW moving averages.
-            self.adamw_m[i] = self.adamw_beta1 * self.adamw_m[i] + (F::ONE - self.adamw_beta1) * gradients[i];
-            self.adamw_v[i] = self.adamw_beta2 * self.adamw_v[i] + (F::ONE - self.adamw_beta2) * gradients[i].powi(2);
+            // Skip weights updating when gradient is 0.
+            if gradients[i] != F::ZERO {
+                // Update AdamW moving averages.
+                self.adamw_m[i] = self.adamw_beta1 * self.adamw_m[i] + (F::ONE - self.adamw_beta1) * gradients[i];
+                self.adamw_v[i] = self.adamw_beta2 * self.adamw_v[i] + (F::ONE - self.adamw_beta2) * gradients[i].powi(2);
 
-            // Calculate their weighted values.
-            let adamw_weighted_m = self.adamw_m[i] / adamw_inv_beta1_t;
-            let adamw_weighted_v = self.adamw_v[i] / adamw_inv_beta2_t;
+                // Calculate their weighted values.
+                let adamw_weighted_m = self.adamw_m[i] / adamw_inv_beta1_t;
+                let adamw_weighted_v = self.adamw_v[i] / adamw_inv_beta2_t;
 
-            // Update value using gradient and calculated AdamW values.
-            values[i] -= learn_rate * adamw_weighted_m / (adamw_weighted_v.sqrt() + F::EPSILON) + learn_rate * self.adamw_lambda * values[i];
+                // Update value using gradient and calculated AdamW values.
+                values[i] -= learn_rate * adamw_weighted_m / (adamw_weighted_v.sqrt() + F::EPSILON) + learn_rate * self.adamw_lambda * values[i];
+            }
         }
 
         values
