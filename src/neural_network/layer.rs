@@ -211,22 +211,35 @@ fn test_neurons_layer_backward_propagation() {
     let mut layer = Layer32::<1, 2>::sigmoid();
 
     // Prepare backpropagatrion policy for this layer.
-    let mut backpropagation = Backpropagation::default();
+    let mut backpropagation = Backpropagation::default()
+        .with_learn_rate(0.01);
 
-    // Train it on 6 examples for 100 epochs.
-    for _ in 0..100 {
-        backpropagation.timestep(|mut policy| {
-            layer.backward(&[1.0], &[1.0, 0.0], &mut policy);
-            layer.backward(&[0.0], &[0.0, 1.0], &mut policy);
-            layer.backward(&[0.6], &[1.0, 0.0], &mut policy);
-            layer.backward(&[0.3], &[0.0, 1.0], &mut policy);
-            layer.backward(&[0.8], &[1.0, 0.0], &mut policy);
-            layer.backward(&[0.1], &[0.0, 1.0], &mut policy);
-        });
+    // Prepare list of train samples.
+    let examples = [
+        (0.5, [1.0, 0.0]),
+        (0.1, [0.0, 1.0]),
+        (0.6, [1.0, 0.0]),
+        (0.2, [0.0, 1.0]),
+        (0.7, [1.0, 0.0]),
+        (0.3, [0.0, 1.0]),
+        (0.8, [1.0, 0.0]),
+        (0.4, [0.0, 1.0])
+    ];
+
+    // Train it on given examples for 1000 epochs.
+    for _ in 0..1000 {
+        for (input, output) in examples {
+            backpropagation.timestep(|mut policy| {
+                layer.backward(&[input], &output, &mut policy);
+            });
+        }
     }
 
     // Validate its output.
     let output = layer.forward(&[0.23]);
+
+    dbg!(output);
+    dbg!(&layer);
 
     assert!(output[0] < 0.5);
     assert!(output[1] > 0.5);
@@ -258,8 +271,8 @@ fn test_linked_neurons_layers_backward_propagation() {
     let mut output_layer = Layer32::<4, 1>::sigmoid();
 
     // Prepare backpropagatrion policy for these layers.
-    let mut policy_input = Backpropagation::default();
-    let mut policy_output = Backpropagation::default();
+    let mut policy_input = Backpropagation::default().with_learn_rate(0.001);
+    let mut policy_output = Backpropagation::default().with_learn_rate(0.001);
 
     // Prepare list of train samples.
     let examples = [
@@ -295,8 +308,8 @@ fn test_linked_neurons_layers_backward_propagation() {
         ([ 0.0,  0.0], 1.0)
     ];
 
-    // Train both layers on given samples for 100 epochs.
-    for _ in 0..100 {
+    // Train both layers on given samples for 1000 epochs.
+    for _ in 0..1000 {
         for (input, output) in examples {
             let hidden_output = input_layer.forward(&input);
 
