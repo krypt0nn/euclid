@@ -79,11 +79,26 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     ) -> Self {
         let mut weights = [F::ZERO; INPUT_SIZE];
 
-        for weight in &mut weights {
-            *weight = F::from_float(fastrand::f32() - 0.5);
+        fn xavier_normal(size: f32) -> f32 {
+            // Calculate standard deviation for Xavier initialization.
+            let std_dev = (2.0 / size).sqrt();
+
+            // Box-Muller transform to convert uniform to normal distribution.
+            let u1 = (1.0 - fastrand::f32()).max(f32::EPSILON); // Ensure (0, 1]
+            let u2 = fastrand::f32();
+
+            // Generate standard normal variable.
+            let z0 = (-2.0 * u1.ln()).sqrt() * (2.0 * std::f32::consts::PI * u2).cos();
+
+            // Scale to Xavier initialization.
+            z0 * std_dev
         }
 
-        let bias = F::from_float(fastrand::f32() - 0.5);
+        for weight in &mut weights {
+            *weight = F::from_float(xavier_normal(INPUT_SIZE as f32 + 2.0));
+        }
+
+        let bias = F::from_float(xavier_normal(INPUT_SIZE as f32 + 2.0));
 
         Self {
             weights,

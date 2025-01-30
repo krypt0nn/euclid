@@ -89,7 +89,7 @@ fn main() {
         .collect::<Vec<usize>>();
 
     const RADIUS: usize = 4;
-    const EMBEDDING: usize = 2;
+    const EMBEDDING: usize = 4;
 
     let mut loss_input = [0; RADIUS * 2];
     let loss_output = unique_tokens.iter().position(|token| token == &word_tokens[RADIUS]).unwrap_or_default();
@@ -109,14 +109,14 @@ fn main() {
     let mut model = WordEmbeddingsModel::<2048, EMBEDDING, f64>::random();
 
     let mut backpropagation = Backpropagation::default()
-        .with_warmup_duration(10)
-        // .with_cycle_period(20)
-        // .with_cycle_radius(0.0005)
-        .with_learn_rate(0.00003);
+        .with_warmup_duration(100)
+        .with_cycle_period(200)
+        .with_cycle_radius(0.0015)
+        .with_learn_rate(0.0003);
 
     let now = std::time::Instant::now();
 
-    for i in 0..500 {
+    for i in 0..1000 {
         backpropagation.timestep(|mut policy| {
             model.train::<RADIUS>(&numeric_tokens, &mut policy);
         });
@@ -152,17 +152,17 @@ fn main() {
         }
     }
 
-    println!();
+    // println!();
 
-    let mut table = String::from("token;x;y\n");
+    // let mut table = String::from("token;x;y\n");
 
-    for (i, token) in unique_tokens.iter().enumerate() {
-        if token.chars().next().unwrap().is_ascii_alphanumeric() {
-            let [x, y] = model.get_embedding(i);
+    // for (i, token) in unique_tokens.iter().enumerate() {
+    //     if token.chars().next().unwrap().is_ascii_alphanumeric() {
+    //         let [x, y] = model.get_embedding(i);
 
-            table += &format!("\"{token}\";{x};{y}\n");
-        }
-    }
+    //         table += &format!("\"{token}\";{x};{y}\n");
+    //     }
+    // }
 
-    std::fs::write("table.csv", table).unwrap();
+    // std::fs::write("table.csv", table).unwrap();
 }
