@@ -312,7 +312,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         &mut self,
         input: &[F; INPUT_SIZE],
         expected_output: F,
-        policy: &mut Backpropagation<{ INPUT_SIZE + 1 }, F>
+        policy: &mut BackpropagationSnapshot<'_, { INPUT_SIZE + 1 }, F>
     ) -> [F; INPUT_SIZE] {
         // Calculate argument of the activation function.
         let argument = self.make_weighted_input(input);
@@ -361,7 +361,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         &mut self,
         input: &[F; INPUT_SIZE],
         output_gradient: F,
-        policy: &mut Backpropagation<{ INPUT_SIZE + 1 }, F>
+        policy: &mut BackpropagationSnapshot<'_, { INPUT_SIZE + 1 }, F>
     ) -> [F; INPUT_SIZE] {
         // Calculate argument of the activation function.
         let argument = self.make_weighted_input(input);
@@ -420,14 +420,16 @@ fn test_neuron_backward_propagation() {
     let mut neuron = Neuron32::linear();
 
     // Prepare backpropagatrion policy for this neuron.
-    let mut policy = Backpropagation::default();
+    let mut backpropagation = Backpropagation::default();
 
     // Train this neuron for 100 epohs on given examples.
     for _ in 0..100 {
-        neuron.backward(&[0.0, 1.0], 1.0, &mut policy);
-        neuron.backward(&[2.0, 0.0], 2.0, &mut policy);
-        neuron.backward(&[1.0, 1.0], 2.0, &mut policy);
-        neuron.backward(&[2.0, 1.0], 3.0, &mut policy);
+        backpropagation.timestep(|mut policy| {
+            neuron.backward(&[0.0, 1.0], 1.0, &mut policy);
+            neuron.backward(&[2.0, 0.0], 2.0, &mut policy);
+            neuron.backward(&[1.0, 1.0], 2.0, &mut policy);
+            neuron.backward(&[2.0, 1.0], 3.0, &mut policy);
+        });
     }
 
     // Validate trained neuron.
@@ -543,11 +545,18 @@ fn test_linked_neurons_backward_propagation() {
             let output_12 = neuron_12.forward(&input_12);
 
             // Backward pass for the output neuron.
-            let gradients = neuron_21.backward(&[output_11, output_12], expected_output, &mut policy_21);
+            let gradients = policy_21.timestep(|mut policy| {
+                neuron_21.backward(&[output_11, output_12], expected_output, &mut policy)
+            });
 
             // Backward pass for the first layer neurons.
-            neuron_11.backward_propagated(&input_11, gradients[0], &mut policy_11);
-            neuron_12.backward_propagated(&input_12, gradients[1], &mut policy_12);
+            policy_11.timestep(|mut policy| {
+                neuron_11.backward_propagated(&input_11, gradients[0], &mut policy);
+            });
+
+            policy_12.timestep(|mut policy| {
+                neuron_12.backward_propagated(&input_12, gradients[1], &mut policy);
+            });
         }
     }
 

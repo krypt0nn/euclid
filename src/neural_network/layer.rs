@@ -149,7 +149,7 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
         &mut self,
         input: &[F; INPUT_SIZE],
         expected_output: &[F; OUTPUT_SIZE],
-        policy: &mut Backpropagation<{ (INPUT_SIZE + 1) * OUTPUT_SIZE }, F>
+        policy: &mut BackpropagationSnapshot<'_, { (INPUT_SIZE + 1) * OUTPUT_SIZE }, F>
     ) -> [F; INPUT_SIZE] {
         let mut gradients = [F::ZERO; INPUT_SIZE];
 
@@ -157,8 +157,8 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
 
         #[allow(clippy::needless_range_loop)]
         for i in 0..OUTPUT_SIZE {
-            let neuron_gradients = policy.window::<{ INPUT_SIZE + 1 }, _>((INPUT_SIZE + 1) * i, |windowed_policy| {
-                self.neurons[i].backward(input, expected_output[i], windowed_policy)
+            let neuron_gradients = policy.window::<{ INPUT_SIZE + 1 }, _>((INPUT_SIZE + 1) * i, |mut policy| {
+                self.neurons[i].backward(input, expected_output[i], &mut policy)
             });
 
             for j in 0..INPUT_SIZE {
@@ -179,7 +179,7 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
         &mut self,
         input: &[F; INPUT_SIZE],
         output_gradient: &[F; OUTPUT_SIZE],
-        policy: &mut Backpropagation<{ (INPUT_SIZE + 1) * OUTPUT_SIZE }, F>
+        policy: &mut BackpropagationSnapshot<'_, { (INPUT_SIZE + 1) * OUTPUT_SIZE }, F>
     ) -> [F; INPUT_SIZE] {
         let mut gradients = [F::ZERO; INPUT_SIZE];
 
@@ -187,8 +187,8 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
 
         #[allow(clippy::needless_range_loop)]
         for i in 0..OUTPUT_SIZE {
-            let neuron_gradients = policy.window::<{ INPUT_SIZE + 1 }, _>((INPUT_SIZE + 1) * i, |windowed_policy| {
-                self.neurons[i].backward_propagated(input, output_gradient[i], windowed_policy)
+            let neuron_gradients = policy.window::<{ INPUT_SIZE + 1 }, _>((INPUT_SIZE + 1) * i, |mut policy| {
+                self.neurons[i].backward_propagated(input, output_gradient[i], &mut policy)
             });
 
             for j in 0..INPUT_SIZE {
@@ -211,16 +211,18 @@ fn test_neurons_layer_backward_propagation() {
     let mut layer = Layer32::<1, 2>::sigmoid();
 
     // Prepare backpropagatrion policy for this layer.
-    let mut policy = Backpropagation::default();
+    let mut backpropagation = Backpropagation::default();
 
     // Train it on 6 examples for 100 epochs.
     for _ in 0..100 {
-        layer.backward(&[1.0], &[1.0, 0.0], &mut policy);
-        layer.backward(&[0.0], &[0.0, 1.0], &mut policy);
-        layer.backward(&[0.6], &[1.0, 0.0], &mut policy);
-        layer.backward(&[0.3], &[0.0, 1.0], &mut policy);
-        layer.backward(&[0.8], &[1.0, 0.0], &mut policy);
-        layer.backward(&[0.1], &[0.0, 1.0], &mut policy);
+        backpropagation.timestep(|mut policy| {
+            layer.backward(&[1.0], &[1.0, 0.0], &mut policy);
+            layer.backward(&[0.0], &[0.0, 1.0], &mut policy);
+            layer.backward(&[0.6], &[1.0, 0.0], &mut policy);
+            layer.backward(&[0.3], &[0.0, 1.0], &mut policy);
+            layer.backward(&[0.8], &[1.0, 0.0], &mut policy);
+            layer.backward(&[0.1], &[0.0, 1.0], &mut policy);
+        });
     }
 
     // Validate its output.
@@ -298,9 +300,13 @@ fn test_linked_neurons_layers_backward_propagation() {
         for (input, output) in examples {
             let hidden_output = input_layer.forward(&input);
 
-            let gradients = output_layer.backward(&hidden_output, &[output], &mut policy_output);
+            let gradients = policy_output.timestep(|mut policy| {
+                output_layer.backward(&hidden_output, &[output], &mut policy)
+            });
 
-            input_layer.backward_propagated(&input, &gradients, &mut policy_input);
+            policy_input.timestep(|mut policy| {
+                input_layer.backward_propagated(&input, &gradients, &mut policy);
+            });
         }
     }
 

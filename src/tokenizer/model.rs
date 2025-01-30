@@ -85,7 +85,7 @@ impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> Model<TOKEN
     pub fn train<const RADIUS: usize>(
         &mut self,
         tokens: &[usize],
-        policy: &mut Backpropagation<{ (TOKENS_NUM + 1) * EMBEDDING_SIZE + (EMBEDDING_SIZE + 1) * TOKENS_NUM }, F>
+        policy: &mut BackpropagationSnapshot<'_, { (TOKENS_NUM + 1) * EMBEDDING_SIZE + (EMBEDDING_SIZE + 1) * TOKENS_NUM }, F>
     )
     where
         [(); { (TOKENS_NUM + 1) * EMBEDDING_SIZE + (EMBEDDING_SIZE + 1) * TOKENS_NUM }]: Sized
@@ -106,13 +106,13 @@ impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> Model<TOKEN
 
             let forward = self.input_layer.forward(&input);
 
-            let gradients = policy.window(0, |policy| {
+            let gradients = policy.window(0, |mut policy| {
                 // TOKENS_NUM output neurons with EMBEDDING_SIZE weights + 1 bias each.
-                self.output_layer.backward(&forward, &output, policy)
+                self.output_layer.backward(&forward, &output, &mut policy)
             });
 
-            policy.window((EMBEDDING_SIZE + 1) * TOKENS_NUM, |policy| {
-                self.input_layer.backward_propagated(&input, &gradients, policy);
+            policy.window((EMBEDDING_SIZE + 1) * TOKENS_NUM, |mut policy| {
+                self.input_layer.backward_propagated(&input, &gradients, &mut policy);
             });
         }
     }

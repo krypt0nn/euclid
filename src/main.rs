@@ -108,16 +108,18 @@ fn main() {
 
     let mut model = WordEmbeddingsModel::<2048, EMBEDDING, f64>::random();
 
-    let mut policy = Backpropagation::default()
+    let mut backpropagation = Backpropagation::default()
         .with_warmup_duration(10)
-        .with_cycle_period(20)
-        .with_cycle_radius(0.0005)
+        // .with_cycle_period(20)
+        // .with_cycle_radius(0.0005)
         .with_learn_rate(0.00003);
 
     let now = std::time::Instant::now();
 
     for i in 0..500 {
-        model.train::<RADIUS>(&numeric_tokens, &mut policy);
+        backpropagation.timestep(|mut policy| {
+            model.train::<RADIUS>(&numeric_tokens, &mut policy);
+        });
 
         if i % 20 == 0 && i != 0 {
             let loss = model.loss(&loss_input, loss_output);

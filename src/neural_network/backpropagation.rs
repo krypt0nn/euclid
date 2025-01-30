@@ -264,42 +264,46 @@ impl<const SIZE: usize, F: Float> Backpropagation<SIZE, F> {
         self
     }
 
-    /// Increase backpropagation timestep by one.
-    ///
-    /// This method will return previous timestep value.
-    pub fn next_step(&mut self) -> u32 {
-        let prev = self.timestep;
-
+    #[inline]
+    /// Call given callback with a snapshot of the backpropagation policy
+    /// with timestep increased by one.
+    pub fn timestep<T>(&mut self, mut callback: impl FnMut(BackpropagationSnapshot<'_, SIZE, F>) -> T) -> T {
         self.timestep += 1;
 
-        prev
+        callback(BackpropagationSnapshot(self))
     }
+}
 
+/// Wrapper of the backpropagation policy to enforce methods execution
+/// within the same timestep for all neurons and layers within the network.
+pub struct BackpropagationSnapshot<'policy, const SIZE: usize, F: Float>(&'policy mut Backpropagation<SIZE, F>);
+
+impl<const SIZE: usize, F: Float> BackpropagationSnapshot<'_, SIZE, F> {
     /// Call given callback with a slice of current backpropagation policy struct
     /// and update current one after the callback execution.
-    pub fn window<const LEN: usize, T>(&mut self, offset: usize, mut callback: impl FnMut(&mut Backpropagation<LEN, F>) -> T) -> T {
-        let mut windowed_backpropagation = Backpropagation {
-            timestep: self.timestep,
+    pub fn window<const LEN: usize, T>(&mut self, offset: usize, mut callback: impl FnMut(BackpropagationSnapshot<LEN, F>) -> T) -> T {
+        let mut windowed = Backpropagation {
+            timestep: self.0.timestep,
 
-            adamw_m: core::array::from_fn::<_, LEN, _>(|i| self.adamw_m[offset + i]),
-            adamw_v: core::array::from_fn::<_, LEN, _>(|i| self.adamw_v[offset + i]),
+            adamw_m: core::array::from_fn::<_, LEN, _>(|i| self.0.adamw_m[offset + i]),
+            adamw_v: core::array::from_fn::<_, LEN, _>(|i| self.0.adamw_v[offset + i]),
 
-            adamw_beta1: self.adamw_beta1,
-            adamw_beta2: self.adamw_beta2,
-            adamw_lambda: self.adamw_lambda,
+            adamw_beta1: self.0.adamw_beta1,
+            adamw_beta2: self.0.adamw_beta2,
+            adamw_lambda: self.0.adamw_lambda,
 
-            warmup_duration: self.warmup_duration,
+            warmup_duration: self.0.warmup_duration,
 
-            cycle_radius: self.cycle_radius,
-            cycle_period: self.cycle_period,
+            cycle_radius: self.0.cycle_radius,
+            cycle_period: self.0.cycle_period,
 
-            learn_rate: self.learn_rate
+            learn_rate: self.0.learn_rate
         };
 
-        let output = callback(&mut windowed_backpropagation);
+        let output = callback(BackpropagationSnapshot(&mut windowed));
 
-        self.adamw_m[offset..offset + LEN].copy_from_slice(&windowed_backpropagation.adamw_m);
-        self.adamw_v[offset..offset + LEN].copy_from_slice(&windowed_backpropagation.adamw_v);
+        self.0.adamw_m[offset..offset + LEN].copy_from_slice(&windowed.adamw_m);
+        self.0.adamw_v[offset..offset + LEN].copy_from_slice(&windowed.adamw_v);
 
         output
     }
@@ -307,46 +311,46 @@ impl<const SIZE: usize, F: Float> Backpropagation<SIZE, F> {
     /// Backpropagate given values using calculated gradients.
     pub fn backpropagate(&mut self, mut values: [F; SIZE], gradients: [F; SIZE]) -> [F; SIZE] {
         // Learn rate warmup.
-        let learn_rate = if self.timestep < self.warmup_duration {
-            self.learn_rate * F::from_float(self.timestep as f32 / self.warmup_duration as f32)
+        let learn_rate = if self.0.timestep < self.0.warmup_duration {
+            self.0.learn_rate * F::from_float(self.0.timestep as f32 / self.0.warmup_duration as f32)
         }
 
         // Either period or radius of the cycle are zero, which mean
         // we can't apply cyclic schedule to the learn rate.
-        else if self.cycle_period == 0 || self.cycle_radius == F::ZERO {
-            self.learn_rate
+        else if self.0.cycle_period == 0 || self.0.cycle_radius == F::ZERO {
+            self.0.learn_rate
         }
 
         // Cyclic schedule.
         else {
             // Amount of passed timesteps within the cycle.
-            let cycle_steps = (self.timestep - self.warmup_duration) % self.cycle_period;
+            let cycle_steps = (self.0.timestep - self.0.warmup_duration) % self.0.cycle_period;
 
             // Percent of cycle finishing.
-            let cycle_value = cycle_steps as f32 / self.cycle_period as f32;
+            let cycle_value = cycle_steps as f32 / self.0.cycle_period as f32;
 
             // Calculate current sine value, scale it by the radius and add it to the learn rate.
-            self.learn_rate + self.cycle_radius * F::from_float((2.0 * std::f32::consts::PI * cycle_value).sin())
+            self.0.learn_rate + self.0.cycle_radius * F::from_float((2.0 * std::f32::consts::PI * cycle_value).sin())
         };
 
         // Calculate AdamW beta powers.
-        let adamw_inv_beta1_t = F::ONE - self.adamw_beta1.powi(self.timestep as i32);
-        let adamw_inv_beta2_t = F::ONE - self.adamw_beta2.powi(self.timestep as i32);
+        let adamw_inv_beta1_t = F::ONE - self.0.adamw_beta1.powi(self.0.timestep as i32);
+        let adamw_inv_beta2_t = F::ONE - self.0.adamw_beta2.powi(self.0.timestep as i32);
 
         // Update given values.
         for i in 0..SIZE {
             // Skip weights updating when gradient is 0.
             if gradients[i] != F::ZERO {
                 // Update AdamW moving averages.
-                self.adamw_m[i] = self.adamw_beta1 * self.adamw_m[i] + (F::ONE - self.adamw_beta1) * gradients[i];
-                self.adamw_v[i] = self.adamw_beta2 * self.adamw_v[i] + (F::ONE - self.adamw_beta2) * gradients[i].powi(2);
+                self.0.adamw_m[i] = self.0.adamw_beta1 * self.0.adamw_m[i] + (F::ONE - self.0.adamw_beta1) * gradients[i];
+                self.0.adamw_v[i] = self.0.adamw_beta2 * self.0.adamw_v[i] + (F::ONE - self.0.adamw_beta2) * gradients[i].powi(2);
 
                 // Calculate their weighted values.
-                let adamw_weighted_m = self.adamw_m[i] / adamw_inv_beta1_t;
-                let adamw_weighted_v = self.adamw_v[i] / adamw_inv_beta2_t;
+                let adamw_weighted_m = self.0.adamw_m[i] / adamw_inv_beta1_t;
+                let adamw_weighted_v = self.0.adamw_v[i] / adamw_inv_beta2_t;
 
                 // Update value using gradient and calculated AdamW values.
-                values[i] -= learn_rate * adamw_weighted_m / (adamw_weighted_v.sqrt() + F::EPSILON) + learn_rate * self.adamw_lambda * values[i];
+                values[i] -= learn_rate * adamw_weighted_m / (adamw_weighted_v.sqrt() + F::EPSILON) + learn_rate * self.0.adamw_lambda * values[i];
             }
         }
 
