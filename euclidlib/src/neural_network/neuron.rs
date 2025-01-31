@@ -46,7 +46,7 @@ pub type Neuron64<const INPUT_SIZE: usize> = Neuron<INPUT_SIZE, f64>;
 /// ```
 pub struct Neuron<const INPUT_SIZE: usize, F: Float> {
     /// Weights for the neuron inputs.
-    weights: [F; INPUT_SIZE],
+    weights: Box<[F]>,
 
     /// Value added to the weighted input sum.
     bias: F,
@@ -70,7 +70,7 @@ impl<const INPUT_SIZE: usize, F: Float> Default for Neuron<INPUT_SIZE, F> {
     #[inline]
     fn default() -> Self {
         Self {
-            weights: [F::EPSILON; INPUT_SIZE],
+            weights: vec![F::EPSILON; INPUT_SIZE].into_boxed_slice(),
             bias: F::EPSILON,
 
             activation_function: sigmoid,
@@ -92,7 +92,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         loss_function: fn(F, F) -> F,
         loss_function_derivative: fn(F, F) -> F
     ) -> Self {
-        let mut weights = [F::ZERO; INPUT_SIZE];
+        let mut weights = vec![F::ZERO; INPUT_SIZE];
 
         fn xavier_normal(size: f32) -> f32 {
             // Calculate standard deviation for Xavier initialization.
@@ -116,7 +116,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         let bias = F::from_float(xavier_normal(INPUT_SIZE as f32 + 2.0));
 
         Self {
-            weights,
+            weights: weights.into_boxed_slice(),
             bias,
 
             activation_function,
@@ -155,7 +155,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     /// `Neuron::with_loss_function` to change them
     /// to different options.
     pub fn from_bytes(bytes: &[u8; (INPUT_SIZE + 1) * F::BYTES]) -> Self {
-        let mut weights = [F::ZERO; INPUT_SIZE];
+        let mut weights = vec![F::ZERO; INPUT_SIZE];
         let mut bias = [0; F::BYTES];
 
         bias.copy_from_slice(&bytes[..F::BYTES]);
@@ -175,7 +175,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         }
 
         Self {
-            weights,
+            weights: weights.into_boxed_slice(),
             bias: F::from_bytes(&bias),
 
             activation_function: sigmoid,
@@ -208,8 +208,8 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
     #[inline]
     /// Change weights of the neuron's inputs.
-    pub const fn with_weights(mut self, weights: [F; INPUT_SIZE]) -> Self {
-        self.weights = weights;
+    pub fn with_weights(mut self, weights: [F; INPUT_SIZE]) -> Self {
+        self.weights = Box::new(weights);
 
         self
     }
@@ -250,7 +250,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
     #[inline]
     /// Return params of the current neuron (weights and bias).
-    pub const fn params(&self) -> (&[F; INPUT_SIZE], &F) {
+    pub const fn params(&self) -> (&[F], &F) {
         (&self.weights, &self.bias)
     }
 
@@ -272,7 +272,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     /// Resize neuron by truncating input weights or repeating them.
     pub fn resize<const NEW_INPUT_SIZE: usize>(&self) -> Neuron<NEW_INPUT_SIZE, F> {
         Neuron {
-            weights: core::array::from_fn(|i| self.weights[i % INPUT_SIZE]),
+            weights: (0..NEW_INPUT_SIZE).map(|i| self.weights[i % INPUT_SIZE]).collect(),
             bias: self.bias,
 
             activation_function: self.activation_function,
@@ -290,7 +290,11 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     pub fn quantize<T: Float>(&self) -> Neuron<INPUT_SIZE, T> {
         unsafe {
             Neuron {
-                weights: self.weights.map(T::from_float),
+                weights: self.weights.iter()
+                    .copied()
+                    .map(T::from_float)
+                    .collect(),
+
                 bias: T::from_float(self.bias),
 
                 // Transmute activation and loss functions from fn(F) into fn(T).
