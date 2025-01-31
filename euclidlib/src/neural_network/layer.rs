@@ -43,13 +43,13 @@ pub type Layer64<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize> = Layer<INPU
 /// assert!((output[0] - 0.7).abs() < 0.5);
 /// ```
 pub struct Layer<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> {
-    neurons: [Neuron<INPUT_SIZE, F>; OUTPUT_SIZE]
+    neurons: Box<[Neuron<INPUT_SIZE, F>; OUTPUT_SIZE]>
 }
 
 impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SIZE, OUTPUT_SIZE, F> {
     #[inline]
     /// Build neurons layer from provided neurons list.
-    pub fn from_neurons(neurons: [Neuron<INPUT_SIZE, F>; OUTPUT_SIZE]) -> Self {
+    pub fn from_neurons(neurons: Box<[Neuron<INPUT_SIZE, F>; OUTPUT_SIZE]>) -> Self {
         Self {
             neurons
         }
@@ -64,14 +64,14 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
         loss_function_derivative: fn(F, F) -> F
     ) -> Self {
         Self {
-            neurons: core::array::from_fn(|_| {
+            neurons: Box::new(core::array::from_fn(|_| {
                 Neuron::new(
                     activation_function,
                     activation_function_derivative,
                     loss_function,
                     loss_function_derivative
                 )
-            })
+            }))
         }
     }
 
@@ -108,9 +108,9 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
     /// you can lose precision necessary for correct work of the layer.
     pub fn quantize<T: Float>(&self) -> Layer<INPUT_SIZE, OUTPUT_SIZE, T> {
         Layer {
-            neurons: core::array::from_fn(|i| {
+            neurons: Box::new(core::array::from_fn(|i| {
                 self.neurons[i].quantize::<T>()
-            })
+            }))
         }
     }
 

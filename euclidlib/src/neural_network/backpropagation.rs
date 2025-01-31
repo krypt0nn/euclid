@@ -1,6 +1,6 @@
 use super::prelude::*;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 /// Information used for values backpropagation.
 ///
 /// Stores AdamW optimizer info for `SIZE` parameters in `F` float type.
@@ -25,10 +25,10 @@ pub struct Backpropagation<const SIZE: usize, F: Float> {
     timestep: u32,
 
     /// AdamW backpropagation optimization momentums.
-    adamw_m: [F; SIZE],
+    adamw_m: Box<[F; SIZE]>,
 
     /// AdamW backpropagation optimization squared momentums.
-    adamw_v: [F; SIZE],
+    adamw_v: Box<[F; SIZE]>,
 
     /// AdamW backpropagation optimization hyperparameter.
     ///
@@ -106,8 +106,8 @@ impl<const SIZE: usize, F: Float> Default for Backpropagation<SIZE, F> {
         Self {
             timestep: 0,
 
-            adamw_m: [F::ZERO; SIZE],
-            adamw_v: [F::ZERO; SIZE],
+            adamw_m: Box::new([F::ZERO; SIZE]),
+            adamw_v: Box::new([F::ZERO; SIZE]),
 
             // Recommended defaults for AdamW optimizer.
             adamw_beta1: F::from_float(0.9),
@@ -285,8 +285,8 @@ impl<const SIZE: usize, F: Float> BackpropagationSnapshot<'_, SIZE, F> {
         let mut windowed = Backpropagation {
             timestep: self.0.timestep,
 
-            adamw_m: core::array::from_fn::<_, WINDOW_SIZE, _>(|i| self.0.adamw_m[offset + i]),
-            adamw_v: core::array::from_fn::<_, WINDOW_SIZE, _>(|i| self.0.adamw_v[offset + i]),
+            adamw_m: Box::new(core::array::from_fn::<_, WINDOW_SIZE, _>(|i| self.0.adamw_m[offset + i])),
+            adamw_v: Box::new(core::array::from_fn::<_, WINDOW_SIZE, _>(|i| self.0.adamw_v[offset + i])),
 
             adamw_beta1: self.0.adamw_beta1,
             adamw_beta2: self.0.adamw_beta2,
@@ -302,8 +302,8 @@ impl<const SIZE: usize, F: Float> BackpropagationSnapshot<'_, SIZE, F> {
 
         let output = callback(BackpropagationSnapshot(&mut windowed));
 
-        self.0.adamw_m[offset..offset + WINDOW_SIZE].copy_from_slice(&windowed.adamw_m);
-        self.0.adamw_v[offset..offset + WINDOW_SIZE].copy_from_slice(&windowed.adamw_v);
+        self.0.adamw_m[offset..offset + WINDOW_SIZE].copy_from_slice(windowed.adamw_m.as_slice());
+        self.0.adamw_v[offset..offset + WINDOW_SIZE].copy_from_slice(windowed.adamw_v.as_slice());
 
         output
     }
