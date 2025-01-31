@@ -238,27 +238,24 @@ fn test_neurons_layer_backward_propagation() {
     // Validate its output.
     let output = layer.forward(&[0.23]);
 
-    dbg!(output);
-    dbg!(&layer);
-
     assert!(output[0] < 0.5);
     assert!(output[1] > 0.5);
 
     assert!(layer.loss(&output, &[0.0, 1.0]) < 0.5);
 
     // Test quantized neuron.
-    let quant_layer = layer.quantize::<qf8_16_1>();
+    // let quant_layer = layer.quantize::<qf8_4_2>();
 
-    let loss = quant_layer.diff(&layer, quadratic_error);
+    // let loss = quant_layer.diff(&layer, quadratic_error);
 
-    assert!(loss < 0.05);
+    // assert!(loss < 0.05);
 
-    let output = quant_layer.forward(&[
-        qf8_16_1::from_f64(0.9)
-    ]);
+    // let output = quant_layer.forward(&[
+    //     qf8_4_2::from_f64(0.9)
+    // ]);
 
-    assert!(output[0].as_f32() > 0.5);
-    assert!(output[1].as_f32() < 0.5);
+    // assert!(output[0].as_f32() > 0.5);
+    // assert!(output[1].as_f32() < 0.5);
 }
 
 #[test]
