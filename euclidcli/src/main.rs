@@ -1,32 +1,8 @@
-#![feature(generic_const_items, generic_const_exprs)]
-#![allow(incomplete_features)]
+use std::collections::HashSet;
 
-pub mod document;
-pub mod neural_network;
-pub mod tokenizer;
-
-pub mod token;
-pub mod message;
-pub mod instruction;
-pub mod database;
-
-pub mod prelude {
-    pub use super::neural_network::prelude::*;
-    pub use super::tokenizer::prelude::*;
-
-    pub use super::document::Document;
-
-    pub use super::token::*;
-    pub use super::message::*;
-    pub use super::instruction::*;
-    pub use super::database::prelude::*;
-}
+use euclidlib::prelude::*;
 
 fn main() {
-    use std::collections::HashSet;
-
-    use crate::prelude::*;
-
     let document = Document::new("
         In data analysis, cosine similarity is a measure of similarity between two non-zero vectors defined in an inner product space.
         Cosine similarity is the cosine of the angle between the vectors; that is, it is the dot product of the vectors divided by the

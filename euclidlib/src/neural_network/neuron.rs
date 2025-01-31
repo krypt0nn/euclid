@@ -22,17 +22,23 @@ pub type Neuron64<const INPUT_SIZE: usize> = Neuron<INPUT_SIZE, f64>;
 /// which is enabled by default.
 ///
 /// ```
-/// use crate::prelude::*;
+/// use euclidlib::prelude::*;
 ///
 /// // Create new neuron which is supposed to calculate sum of 2 input numbers.
 /// let mut neuron = Neuron32::<2>::linear();
 ///
-/// // Train this neuron for 100 epohs on given examples.
-/// for _ in 0..100 {
-///     neuron.backward(&[0.0, 1.0], 1.0, 0.15);
-///     neuron.backward(&[2.0, 0.0], 2.0, 0.15);
-///     neuron.backward(&[1.0, 1.0], 2.0, 0.15);
-///     neuron.backward(&[2.0, 1.0], 3.0, 0.15);
+/// // Prepare default backpropagation policy.
+/// let mut backpropagation = Backpropagation::default()
+///     .with_learn_rate(0.03);
+///
+/// // Train this neuron for 1000 epohs on given examples.
+/// for _ in 0..1000 {
+///     backpropagation.timestep(|mut policy| {
+///         neuron.backward(&[0.0, 1.0], 1.0, &mut policy);
+///         neuron.backward(&[2.0, 0.0], 2.0, &mut policy);
+///         neuron.backward(&[1.0, 1.0], 2.0, &mut policy);
+///         neuron.backward(&[2.0, 1.0], 3.0, &mut policy);
+///     });
 /// }
 ///
 /// // Validate trained neuron.

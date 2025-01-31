@@ -1,4 +1,4 @@
-# Euclid: Stupid Natural Language Framework
+# Euclid CLI: Stupid Natural Language Framework CLI toolkit
 
 Simplified tool for hand-crafting small language models.
 

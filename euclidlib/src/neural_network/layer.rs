@@ -17,15 +17,23 @@ pub type Layer64<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize> = Layer<INPU
 /// of the second layer.
 ///
 /// ```
+/// use euclidlib::prelude::*;
+///
 /// // Create new layer which is supposed to rotate its inputs.
 /// let mut layer = Layer32::<2, 2>::linear();
 ///
-/// // Train this neuron for 100 epohs on given examples.
-/// for _ in 0..100 {
-///     layer.backward(&[0.0, 1.0], &[1.0, 0.0], 0.03);
-///     layer.backward(&[1.0, 0.0], &[0.0, 1.0], 0.03);
-///     layer.backward(&[1.0, 1.0], &[1.0, 1.0], 0.03);
-///     layer.backward(&[0.5, 0.3], &[0.3, 0.5], 0.03);
+/// // Prepare default backpropagation policy.
+/// let mut backpropagation = Backpropagation::default()
+///     .with_learn_rate(0.03);
+///
+/// // Train this neuron for 1000 epohs on given examples.
+/// for _ in 0..1000 {
+///     backpropagation.timestep(|mut policy| {
+///         layer.backward(&[0.0, 1.0], &[1.0, 0.0], &mut policy);
+///         layer.backward(&[1.0, 0.0], &[0.0, 1.0], &mut policy);
+///         layer.backward(&[1.0, 1.0], &[1.0, 1.0], &mut policy);
+///         layer.backward(&[0.5, 0.3], &[0.3, 0.5], &mut policy);
+///     });
 /// }
 ///
 /// // Validate trained neuron.
