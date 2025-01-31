@@ -49,7 +49,7 @@ pub struct Layer<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> {
 impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SIZE, OUTPUT_SIZE, F> {
     #[inline]
     /// Build neurons layer from provided neurons list.
-    pub fn from_neurons(neurons: Box<[Neuron<INPUT_SIZE, F>; OUTPUT_SIZE]>) -> Self {
+    pub fn from_neurons(neurons: Box<[Neuron<INPUT_SIZE, F>]>) -> Self {
         Self {
             neurons
         }
@@ -104,9 +104,22 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
 
     /// Resize current layer by truncating neurons and weights or repeating them.
     pub fn resize<const NEW_INPUT_SIZE: usize, const NEW_OUTPUT_SIZE: usize>(&self) -> Layer<NEW_INPUT_SIZE, NEW_OUTPUT_SIZE, F> {
-        Layer::<NEW_INPUT_SIZE, NEW_OUTPUT_SIZE, F>::from_neurons(Box::new(core::array::from_fn(move |i| {
-            self.neurons[i % OUTPUT_SIZE].resize()
-        })))
+        if INPUT_SIZE == NEW_INPUT_SIZE && OUTPUT_SIZE == NEW_OUTPUT_SIZE {
+            return Layer {
+                neurons: unsafe {
+                    std::mem::transmute::<
+                        Box<[Neuron<INPUT_SIZE, F>]>,
+                        Box<[Neuron<NEW_INPUT_SIZE, F>]>
+                    >(self.neurons.clone())
+                }
+            };
+        }
+
+        let neurons = (0..NEW_OUTPUT_SIZE)
+            .map(|i| self.neurons[i % OUTPUT_SIZE].resize())
+            .collect();
+
+        Layer::<NEW_INPUT_SIZE, NEW_OUTPUT_SIZE, F>::from_neurons(neurons)
     }
 
     /// Convert float type of all stored neurons to another one (quantize it).

@@ -268,9 +268,21 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         (self.loss_function, self.loss_function_derivative)
     }
 
-    #[inline]
     /// Resize neuron by truncating input weights or repeating them.
     pub fn resize<const NEW_INPUT_SIZE: usize>(&self) -> Neuron<NEW_INPUT_SIZE, F> {
+        if NEW_INPUT_SIZE == INPUT_SIZE {
+            return Neuron {
+                weights: self.weights.clone(),
+                bias: self.bias,
+
+                activation_function: self.activation_function,
+                activation_function_derivative: self.activation_function_derivative,
+
+                loss_function: self.loss_function,
+                loss_function_derivative: self.loss_function_derivative
+            }
+        }
+
         Neuron {
             weights: (0..NEW_INPUT_SIZE).map(|i| self.weights[i % INPUT_SIZE]).collect(),
             bias: self.bias,
