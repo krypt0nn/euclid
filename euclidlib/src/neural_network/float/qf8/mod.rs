@@ -1,3 +1,4 @@
+#![allow(clippy::doc_overindented_list_items)]
 //! Generic 1-byte float number with a sign bit, 2 exponent bits and 5 mantissa bits.
 //!
 //! This mod provides aliases to pre-defined generic structs with different

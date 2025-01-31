@@ -65,7 +65,11 @@ fn main() {
         .collect::<Vec<usize>>();
 
     const RADIUS: usize = 4;
+    const TOKENS: usize = 2048;
     const EMBEDDING: usize = 4;
+    const PARAMS: usize = GenericModel::PARAMS;
+
+    type GenericModel = GenericWordEmbeddingsModel::<TOKENS, EMBEDDING, f64>;
 
     let mut loss_input = [0; RADIUS * 2];
     let loss_output = unique_tokens.iter().position(|token| token == &word_tokens[RADIUS]).unwrap_or_default();
@@ -82,7 +86,7 @@ fn main() {
     let similarity = unique_tokens.iter().position(|token| token == "similarity").unwrap_or_default();
     let noteworthy = unique_tokens.iter().position(|token| token == "noteworthy").unwrap_or_default();
 
-    let mut model = WordEmbeddingsModel::<2048, EMBEDDING, f64>::random();
+    let mut model = WordEmbeddingsModel::from_generic(GenericModel::random()).unwrap();
 
     let mut backpropagation = Backpropagation::default()
         .with_warmup_duration(100)
@@ -94,7 +98,7 @@ fn main() {
 
     for i in 0..300 {
         backpropagation.timestep(|mut policy| {
-            model.train::<RADIUS>(&numeric_tokens, &mut policy);
+            model.train::<RADIUS, PARAMS>(&numeric_tokens, &mut policy);
         });
 
         if i % 20 == 0 && i != 0 {

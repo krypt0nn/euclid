@@ -13,6 +13,9 @@ pub struct GenericModel<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F:
 }
 
 impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> GenericModel<TOKENS_NUM, EMBEDDING_SIZE, F> {
+    /// Amount of parameters in the current generic model.
+    pub const PARAMS: usize = (TOKENS_NUM + 1) * EMBEDDING_SIZE + (EMBEDDING_SIZE + 1) * TOKENS_NUM;
+
     #[inline]
     /// Create new word embeddings model with random weights.
     pub fn random() -> Self {

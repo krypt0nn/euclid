@@ -255,12 +255,14 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     }
 
     #[inline]
+    #[allow(clippy::type_complexity)]
     /// Return activation function and its derivative of the current neuron.
     pub const fn activation_function(&self) -> (fn(F) -> F, fn(F) -> F) {
         (self.activation_function, self.activation_function_derivative)
     }
 
     #[inline]
+    #[allow(clippy::type_complexity)]
     /// Return loss function and its derivative of the current neuron.
     pub const fn loss_function(&self) -> (fn(F, F) -> F, fn(F, F) -> F) {
         (self.loss_function, self.loss_function_derivative)

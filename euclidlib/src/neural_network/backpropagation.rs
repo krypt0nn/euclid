@@ -25,10 +25,10 @@ pub struct Backpropagation<const SIZE: usize, F: Float> {
     timestep: u32,
 
     /// AdamW backpropagation optimization momentums.
-    adamw_m: Box<[F; SIZE]>,
+    adamw_m: Box<[F]>,
 
     /// AdamW backpropagation optimization squared momentums.
-    adamw_v: Box<[F; SIZE]>,
+    adamw_v: Box<[F]>,
 
     /// AdamW backpropagation optimization hyperparameter.
     ///
@@ -106,8 +106,8 @@ impl<const SIZE: usize, F: Float> Default for Backpropagation<SIZE, F> {
         Self {
             timestep: 0,
 
-            adamw_m: Box::new([F::ZERO; SIZE]),
-            adamw_v: Box::new([F::ZERO; SIZE]),
+            adamw_m: vec![F::ZERO; SIZE].into_boxed_slice(),
+            adamw_v: vec![F::ZERO; SIZE].into_boxed_slice(),
 
             // Recommended defaults for AdamW optimizer.
             adamw_beta1: F::from_float(0.9),
@@ -281,12 +281,21 @@ pub struct BackpropagationSnapshot<'policy, const SIZE: usize, F: Float>(&'polic
 impl<const SIZE: usize, F: Float> BackpropagationSnapshot<'_, SIZE, F> {
     /// Call given callback with a slice of current backpropagation policy struct
     /// and update current one after the callback execution.
+    ///
+    /// Note that `WINDOW_SIZE` is allowed to exceed actually stored gradients amount
+    /// (size of the backpropagation policy), but new gradients will have default
+    /// values while timestep won't, which will directly affect training quality.
     pub fn window<const WINDOW_SIZE: usize, T>(&mut self, offset: usize, mut callback: impl FnMut(BackpropagationSnapshot<WINDOW_SIZE, F>) -> T) -> T {
         let mut windowed = Backpropagation {
             timestep: self.0.timestep,
 
-            adamw_m: Box::new(core::array::from_fn::<_, WINDOW_SIZE, _>(|i| self.0.adamw_m[offset + i])),
-            adamw_v: Box::new(core::array::from_fn::<_, WINDOW_SIZE, _>(|i| self.0.adamw_v[offset + i])),
+            adamw_m: Box::new(core::array::from_fn::<_, WINDOW_SIZE, _>(|i| {
+                self.0.adamw_m.get(offset + i).copied().unwrap_or(F::ZERO)
+            })),
+
+            adamw_v: Box::new(core::array::from_fn::<_, WINDOW_SIZE, _>(|i| {
+                self.0.adamw_v.get(offset + i).copied().unwrap_or(F::ZERO)
+            })),
 
             adamw_beta1: self.0.adamw_beta1,
             adamw_beta2: self.0.adamw_beta2,
@@ -302,8 +311,13 @@ impl<const SIZE: usize, F: Float> BackpropagationSnapshot<'_, SIZE, F> {
 
         let output = callback(BackpropagationSnapshot(&mut windowed));
 
-        self.0.adamw_m[offset..offset + WINDOW_SIZE].copy_from_slice(windowed.adamw_m.as_slice());
-        self.0.adamw_v[offset..offset + WINDOW_SIZE].copy_from_slice(windowed.adamw_v.as_slice());
+        // Clone updated gradients from the windowed policy.
+        if offset < SIZE {
+            let available = std::cmp::min(SIZE - offset, WINDOW_SIZE);
+
+            self.0.adamw_m[offset..offset + available].copy_from_slice(&windowed.adamw_m[..available]);
+            self.0.adamw_v[offset..offset + available].copy_from_slice(&windowed.adamw_v[..available]);
+        }
 
         output
     }
