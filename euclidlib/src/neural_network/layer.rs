@@ -57,7 +57,7 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
 
     /// Build neurons layer from randomly generated neurons
     /// with provided activation and loss functions.
-    pub fn new(
+    pub fn random(
         activation_function: fn(F) -> F,
         activation_function_derivative: fn(F) -> F,
         loss_function: fn(F, F) -> F,
@@ -65,7 +65,7 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
     ) -> Self {
         Self {
             neurons: Box::new(core::array::from_fn(|_| {
-                Neuron::new(
+                Neuron::random(
                     activation_function,
                     activation_function_derivative,
                     loss_function,
@@ -79,27 +79,34 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
     /// Call `Layer::new` with `linear` activation function
     /// and `quadratic_error` loss function.
     pub fn linear() -> Self {
-        Self::new(linear, linear_derivative, quadratic_error, quadratic_error_derivative)
+        Self::random(linear, linear_derivative, quadratic_error, quadratic_error_derivative)
     }
 
     #[inline]
     /// Call `Layer::new` with `sigmoid` activation function
     /// and `cross_entropy` loss function.
     pub fn sigmoid() -> Self {
-        Self::new(sigmoid, sigmoid_derivative, cross_entropy, cross_entropy_derivative)
+        Self::random(sigmoid, sigmoid_derivative, cross_entropy, cross_entropy_derivative)
     }
 
     #[inline]
     /// Call `Layer::new` with `tanh` activation function
     /// and `cross_entropy` loss function.
     pub fn tanh() -> Self {
-        Self::new(tanh, tanh_derivative, cross_entropy, cross_entropy_derivative)
+        Self::random(tanh, tanh_derivative, cross_entropy, cross_entropy_derivative)
     }
 
     #[inline]
     /// Return neurons of the current layer.
-    pub fn neurons(&self) -> &[Neuron<INPUT_SIZE, F>; OUTPUT_SIZE] {
+    pub const fn neurons(&self) -> &[Neuron<INPUT_SIZE, F>; OUTPUT_SIZE] {
         &self.neurons
+    }
+
+    /// Resize current layer by truncating neurons and weights or repeating them.
+    pub fn resize<const NEW_INPUT_SIZE: usize, const NEW_OUTPUT_SIZE: usize>(&self) -> Layer<NEW_INPUT_SIZE, NEW_OUTPUT_SIZE, F> {
+        Layer::<NEW_INPUT_SIZE, NEW_OUTPUT_SIZE, F>::from_neurons(Box::new(core::array::from_fn(move |i| {
+            self.neurons[i % OUTPUT_SIZE].resize()
+        })))
     }
 
     /// Convert float type of all stored neurons to another one (quantize it).

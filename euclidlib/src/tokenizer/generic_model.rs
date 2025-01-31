@@ -7,18 +7,27 @@ use crate::prelude::*;
 /// into multi-dimentional vectors (word embeddings) where each
 /// dimension has some meaning and allows other natural language
 /// models to use this information for much better training.
-pub struct Model<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> {
+pub struct GenericModel<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> {
     input_layer: Layer<TOKENS_NUM, EMBEDDING_SIZE, F>,
     output_layer: Layer<EMBEDDING_SIZE, TOKENS_NUM, F>
 }
 
-impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> Model<TOKENS_NUM, EMBEDDING_SIZE, F> {
+impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> GenericModel<TOKENS_NUM, EMBEDDING_SIZE, F> {
     #[inline]
     /// Create new word embeddings model with random weights.
     pub fn random() -> Self {
         Self {
             input_layer: Layer::sigmoid(),
             output_layer: Layer::sigmoid()
+        }
+    }
+
+    #[inline]
+    /// Resize model by truncating neurons and weights of the neurons layers or repeating them.
+    pub fn resize<const NEW_TOKENS_NUM: usize, const NEW_EMBEDDING_SIZE: usize>(&self) -> GenericModel<NEW_TOKENS_NUM, NEW_EMBEDDING_SIZE, F> {
+        GenericModel {
+            input_layer: self.input_layer.resize(),
+            output_layer: self.output_layer.resize()
         }
     }
 

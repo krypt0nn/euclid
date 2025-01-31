@@ -69,7 +69,16 @@ pub struct Neuron<const INPUT_SIZE: usize, F: Float> {
 impl<const INPUT_SIZE: usize, F: Float> Default for Neuron<INPUT_SIZE, F> {
     #[inline]
     fn default() -> Self {
-        Self::sigmoid()
+        Self {
+            weights: [F::EPSILON; INPUT_SIZE],
+            bias: F::EPSILON,
+
+            activation_function: sigmoid,
+            activation_function_derivative: sigmoid_derivative,
+
+            loss_function: cross_entropy,
+            loss_function_derivative: cross_entropy_derivative
+        }
     }
 }
 
@@ -77,7 +86,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     /// Construct new neuron with randomly generated input
     /// weights and bias, and given activation function and
     /// its derivative.
-    pub fn new(
+    pub fn random(
         activation_function: fn(F) -> F,
         activation_function_derivative: fn(F) -> F,
         loss_function: fn(F, F) -> F,
@@ -121,21 +130,21 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     /// Call `Neuron::new` with `linear` activation function
     /// and `quadratic_error` loss function.
     pub fn linear() -> Self {
-        Self::new(linear, linear_derivative, quadratic_error, quadratic_error_derivative)
+        Self::random(linear, linear_derivative, quadratic_error, quadratic_error_derivative)
     }
 
     #[inline]
     /// Call `Neuron::new` with `sigmoid` activation function
     /// and `cross_entropy` loss function.
     pub fn sigmoid() -> Self {
-        Self::new(sigmoid, sigmoid_derivative, cross_entropy, cross_entropy_derivative)
+        Self::random(sigmoid, sigmoid_derivative, cross_entropy, cross_entropy_derivative)
     }
 
     #[inline]
     /// Call `Neuron::new` with `tanh` activation function
     /// and `cross_entropy` loss function.
     pub fn tanh() -> Self {
-        Self::new(tanh, tanh_derivative, cross_entropy, cross_entropy_derivative)
+        Self::random(tanh, tanh_derivative, cross_entropy, cross_entropy_derivative)
     }
 
     /// Return neuron with `sigmoid` activation function
@@ -199,7 +208,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
     #[inline]
     /// Change weights of the neuron's inputs.
-    pub fn with_weights(mut self, weights: [F; INPUT_SIZE]) -> Self {
+    pub const fn with_weights(mut self, weights: [F; INPUT_SIZE]) -> Self {
         self.weights = weights;
 
         self
@@ -207,7 +216,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
     #[inline]
     /// Change value added to the weighted sum of the neuron's input.
-    pub fn with_bias(mut self, bias: F) -> Self {
+    pub const fn with_bias(mut self, bias: F) -> Self {
         self.bias = bias;
 
         self
@@ -215,7 +224,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
     #[inline]
     /// Change activation function of the neuron.
-    pub fn with_activation_function(
+    pub const fn with_activation_function(
         mut self,
         activation_function: fn(F) -> F,
         activation_function_derivative: fn(F) -> F
@@ -228,7 +237,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
     #[inline]
     /// Change loss function of the neuron.
-    pub fn with_loss_function(
+    pub const fn with_loss_function(
         mut self,
         loss_function: fn(F, F) -> F,
         loss_function_derivative: fn(F, F) -> F
@@ -241,8 +250,35 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
     #[inline]
     /// Return params of the current neuron (weights and bias).
-    pub fn params(&self) -> (&[F; INPUT_SIZE], &F) {
+    pub const fn params(&self) -> (&[F; INPUT_SIZE], &F) {
         (&self.weights, &self.bias)
+    }
+
+    #[inline]
+    /// Return activation function and its derivative of the current neuron.
+    pub const fn activation_function(&self) -> (fn(F) -> F, fn(F) -> F) {
+        (self.activation_function, self.activation_function_derivative)
+    }
+
+    #[inline]
+    /// Return loss function and its derivative of the current neuron.
+    pub const fn loss_function(&self) -> (fn(F, F) -> F, fn(F, F) -> F) {
+        (self.loss_function, self.loss_function_derivative)
+    }
+
+    #[inline]
+    /// Resize neuron by truncating input weights or repeating them.
+    pub fn resize<const NEW_INPUT_SIZE: usize>(&self) -> Neuron<NEW_INPUT_SIZE, F> {
+        Neuron {
+            weights: core::array::from_fn(|i| self.weights[i % INPUT_SIZE]),
+            bias: self.bias,
+
+            activation_function: self.activation_function,
+            activation_function_derivative: self.activation_function_derivative,
+
+            loss_function: self.loss_function,
+            loss_function_derivative: self.loss_function_derivative
+        }
     }
 
     /// Convert float type of current neuron to another one (quantize it).
