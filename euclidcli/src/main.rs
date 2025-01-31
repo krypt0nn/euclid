@@ -65,7 +65,7 @@ fn main() {
         .collect::<Vec<usize>>();
 
     const RADIUS: usize = 4;
-    const TOKENS: usize = 2048;
+    const TOKENS: usize = 1024;
     const EMBEDDING: usize = 4;
     const PARAMS: usize = GenericModel::PARAMS;
 
@@ -87,6 +87,10 @@ fn main() {
     let noteworthy = unique_tokens.iter().position(|token| token == "noteworthy").unwrap_or_default();
 
     let mut model = WordEmbeddingsModel::from_generic(GenericModel::random()).unwrap();
+
+    let (tokens, embeddings, params) = model.params();
+
+    println!("tokens = {tokens}, embeddings = {embeddings}, params = {params}\n");
 
     let mut backpropagation = Backpropagation::default()
         .with_warmup_duration(100)

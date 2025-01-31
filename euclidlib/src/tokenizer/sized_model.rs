@@ -78,15 +78,16 @@ impl<F: Float> SizedModel<F> {
         }
     }
 
-    /// Get amount of parameters in the current model size variant.
-    pub fn params(&self) -> usize {
+    /// Get amount of input tokens, embedding dimensions and parameters
+    /// in the current model size variant.
+    pub fn params(&self) -> (usize, usize, usize) {
         match self {
-            Self::Tiny(_)   => GenericWordEmbeddingsModel::<1024,    16,   F>::PARAMS,
-            Self::Small(_)  => GenericWordEmbeddingsModel::<4096,    64,   F>::PARAMS,
-            Self::Medium(_) => GenericWordEmbeddingsModel::<16384,   128,  F>::PARAMS,
-            Self::Large(_)  => GenericWordEmbeddingsModel::<65536,   256,  F>::PARAMS,
-            Self::Huge(_)   => GenericWordEmbeddingsModel::<262144,  512,  F>::PARAMS,
-            Self::Giant(_)  => GenericWordEmbeddingsModel::<1048576, 1024, F>::PARAMS
+            Self::Tiny(_)   => (1024,    16,   GenericWordEmbeddingsModel::<1024,    16,   F>::PARAMS),
+            Self::Small(_)  => (4096,    64,   GenericWordEmbeddingsModel::<4096,    64,   F>::PARAMS),
+            Self::Medium(_) => (16384,   128,  GenericWordEmbeddingsModel::<16384,   128,  F>::PARAMS),
+            Self::Large(_)  => (65536,   256,  GenericWordEmbeddingsModel::<65536,   256,  F>::PARAMS),
+            Self::Huge(_)   => (262144,  512,  GenericWordEmbeddingsModel::<262144,  512,  F>::PARAMS),
+            Self::Giant(_)  => (1048576, 1024, GenericWordEmbeddingsModel::<1048576, 1024, F>::PARAMS)
         }
     }
 
