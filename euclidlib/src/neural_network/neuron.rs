@@ -1,4 +1,4 @@
-use super::prelude::*;
+use crate::prelude::*;
 
 /// Generic `Neuron` type with f32 float type.
 pub type Neuron32<const INPUT_SIZE: usize> = Neuron<INPUT_SIZE, f32>;
@@ -46,7 +46,7 @@ pub type Neuron64<const INPUT_SIZE: usize> = Neuron<INPUT_SIZE, f64>;
 /// ```
 pub struct Neuron<const INPUT_SIZE: usize, F: Float> {
     /// Weights for the neuron inputs.
-    weights: Box<[F]>,
+    weights: Box<[F; INPUT_SIZE]>,
 
     /// Value added to the weighted input sum.
     bias: F,
@@ -67,10 +67,14 @@ pub struct Neuron<const INPUT_SIZE: usize, F: Float> {
 }
 
 impl<const INPUT_SIZE: usize, F: Float> Default for Neuron<INPUT_SIZE, F> {
-    #[inline]
     fn default() -> Self {
+        let weights = unsafe {
+            alloc_fixed_heap_array_with(F::EPSILON)
+                .expect("Failed to allocate memory for neuron weights")
+        };
+
         Self {
-            weights: vec![F::EPSILON; INPUT_SIZE].into_boxed_slice(),
+            weights,
             bias: F::EPSILON,
 
             activation_function: sigmoid,
@@ -92,8 +96,6 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         loss_function: fn(F, F) -> F,
         loss_function_derivative: fn(F, F) -> F
     ) -> Self {
-        let mut weights = vec![F::ZERO; INPUT_SIZE];
-
         fn xavier_normal(size: f32) -> f32 {
             // Calculate standard deviation for Xavier initialization.
             let std_dev = (2.0 / size).sqrt();
@@ -109,14 +111,15 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
             z0 * std_dev
         }
 
-        for weight in &mut weights {
-            *weight = F::from_float(xavier_normal(INPUT_SIZE as f32 + 2.0));
-        }
+        let weights = unsafe {
+            alloc_fixed_heap_array_from(|_| F::from_float(xavier_normal(INPUT_SIZE as f32 + 2.0)))
+                .expect("Failed to allocate memory for neuron weights")
+        };
 
         let bias = F::from_float(xavier_normal(INPUT_SIZE as f32 + 2.0));
 
         Self {
-            weights: weights.into_boxed_slice(),
+            weights,
             bias,
 
             activation_function,
@@ -155,7 +158,11 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     /// `Neuron::with_loss_function` to change them
     /// to different options.
     pub fn from_bytes(bytes: &[u8; (INPUT_SIZE + 1) * F::BYTES]) -> Self {
-        let mut weights = vec![F::ZERO; INPUT_SIZE];
+        let mut weights = unsafe {
+            alloc_fixed_heap_array_with(F::ZERO)
+                .expect("Failed to allocate memory for neuron weights")
+        };
+
         let mut bias = [0; F::BYTES];
 
         bias.copy_from_slice(&bytes[..F::BYTES]);
@@ -175,7 +182,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         }
 
         Self {
-            weights: weights.into_boxed_slice(),
+            weights,
             bias: F::from_bytes(&bias),
 
             activation_function: sigmoid,
@@ -250,7 +257,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
     #[inline]
     /// Return params of the current neuron (weights and bias).
-    pub const fn params(&self) -> (&[F], &F) {
+    pub const fn params(&self) -> (&[F; INPUT_SIZE], &F) {
         (&self.weights, &self.bias)
     }
 
@@ -272,7 +279,10 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     pub fn resize<const NEW_INPUT_SIZE: usize>(&self) -> Neuron<NEW_INPUT_SIZE, F> {
         if NEW_INPUT_SIZE == INPUT_SIZE {
             return Neuron {
-                weights: self.weights.clone(),
+                weights: unsafe {
+                    std::mem::transmute(self.weights.clone())
+                },
+
                 bias: self.bias,
 
                 activation_function: self.activation_function,
@@ -284,7 +294,11 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         }
 
         Neuron {
-            weights: (0..NEW_INPUT_SIZE).map(|i| self.weights[i % INPUT_SIZE]).collect(),
+            weights: unsafe {
+                alloc_fixed_heap_array_from(|i| self.weights[i % INPUT_SIZE])
+                    .expect("Failed to allocate memory for resized neuron weights")
+            },
+
             bias: self.bias,
 
             activation_function: self.activation_function,
@@ -302,11 +316,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     pub fn quantize<T: Float>(&self) -> Neuron<INPUT_SIZE, T> {
         unsafe {
             Neuron {
-                weights: self.weights.iter()
-                    .copied()
-                    .map(T::from_float)
-                    .collect(),
-
+                weights: Box::new(self.weights.map(T::from_float)),
                 bias: T::from_float(self.bias),
 
                 // Transmute activation and loss functions from fn(F) into fn(T).
@@ -335,7 +345,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
     /// Calculate sum of inputs multiplied by appropriate weights
     /// plus the neuron's bias.
-    pub fn make_weighted_input(&self, input: &[F; INPUT_SIZE]) -> F {
+    pub fn make_weighted_input(&self, input: &Box<[F; INPUT_SIZE]>) -> F {
         let mut output = F::ZERO;
         let mut i = 0;
 
@@ -367,8 +377,12 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
     #[inline]
     /// Calculate activated output of the neuron (perform forward propagation).
-    pub fn forward(&self, input: &[F; INPUT_SIZE]) -> F {
-        (self.activation_function)(self.make_weighted_input(input))
+    pub fn forward(&self, input: impl IntoHeapArray<F, INPUT_SIZE>) -> F {
+        let input = unsafe {
+            input.into_heap_array()
+        };
+
+        (self.activation_function)(self.make_weighted_input(&input))
     }
 
     #[inline]
@@ -383,14 +397,21 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     /// This function will return gradients of the propagated input weights
     /// which could be used by previous neurons for backward propagation when
     /// we don't know expected outputs of the neurons.
+    ///
+    /// Return `Err` on memory allocation failure.
     pub fn backward(
         &mut self,
-        input: &[F; INPUT_SIZE],
+        input: impl IntoHeapArray<F, INPUT_SIZE>,
         expected_output: F,
         policy: &mut BackpropagationSnapshot<'_, { INPUT_SIZE + 1 }, F>
-    ) -> [F; INPUT_SIZE] {
+    ) -> Box<[F; INPUT_SIZE]> {
+        // Get heap-allocated input values.
+        let input = unsafe {
+            input.into_heap_array()
+        };
+
         // Calculate argument of the activation function.
-        let argument = self.make_weighted_input(input);
+        let argument = self.make_weighted_input(&input);
 
         // Calculate activated value returned by the neuron.
         let actual_output = (self.activation_function)(argument);
@@ -401,15 +422,26 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
         // Prepare map of the backward propagation gradients for current
         // and previous neurons.
-        let mut input_values = [F::ZERO; INPUT_SIZE + 1];
-        let mut forward_gradients = [F::ZERO; INPUT_SIZE + 1];
-        let mut backward_gradients = [F::ZERO; INPUT_SIZE];
+        let mut input_values = unsafe {
+            alloc_fixed_heap_array_with::<F, { INPUT_SIZE + 1 }>(F::ZERO)
+                .expect("Failed to allocate space for neuron backpropagation values")
+        };
+
+        let mut forward_gradients = unsafe {
+            alloc_fixed_heap_array_with::<F, { INPUT_SIZE + 1 }>(F::ZERO)
+                .expect("Failed to allocate space for neuron backpropagation forward gradients")
+        };
+
+        let mut backward_gradients = unsafe {
+            alloc_fixed_heap_array_with::<F, INPUT_SIZE>(F::ZERO)
+                .expect("Failed to allocate space for neuron backpropagation backward gradients")
+        };
 
         // Set gradients and input values.
         input_values[0] = self.bias;
         forward_gradients[0] = gradient;
 
-        input_values[1..].copy_from_slice(&self.weights);
+        input_values[1..].copy_from_slice(self.weights.as_slice());
 
         for i in 0..INPUT_SIZE {
             forward_gradients[i + 1] = gradient * input[i];
@@ -417,11 +449,11 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         }
 
         // Backpropagate weights and bias using calculated gradients.
-        let output_values = policy.backpropagate(input_values, forward_gradients);
+        policy.backpropagate(&mut input_values, &forward_gradients);
 
         // Update weights and bias from the output values.
-        self.bias = output_values[0];
-        self.weights.copy_from_slice(&output_values[1..]);
+        self.bias = input_values[0];
+        self.weights.copy_from_slice(&input_values[1..]);
 
         backward_gradients
     }
@@ -432,14 +464,22 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     ///
     /// This function will return gradient for the current neuron
     /// which could be used by previous neurons as well.
+    ///
+    /// It's expected that input slice has `INPUT_SIZE` length.
+    /// Returns `INPUT_SIZE` gradients.
     pub fn backward_propagated(
         &mut self,
-        input: &[F; INPUT_SIZE],
+        input: impl IntoHeapArray<F, INPUT_SIZE>,
         output_gradient: F,
         policy: &mut BackpropagationSnapshot<'_, { INPUT_SIZE + 1 }, F>
-    ) -> [F; INPUT_SIZE] {
+    ) -> Box<[F; INPUT_SIZE]> {
+        // Get heap-allocated input values.
+        let input = unsafe {
+            input.into_heap_array()
+        };
+
         // Calculate argument of the activation function.
-        let argument = self.make_weighted_input(input);
+        let argument = self.make_weighted_input(&input);
 
         // Calculate gradient of the current neuron using gradient
         // of the connected forward neurons.
@@ -447,15 +487,26 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
         // Prepare map of the backward propagation gradients for current
         // and previous neurons.
-        let mut input_values = [F::ZERO; INPUT_SIZE + 1];
-        let mut forward_gradients = [F::ZERO; INPUT_SIZE + 1];
-        let mut backward_gradients = [F::ZERO; INPUT_SIZE];
+        let mut input_values = unsafe {
+            alloc_fixed_heap_array_with::<F, { INPUT_SIZE + 1 }>(F::ZERO)
+                .expect("Failed to allocate space for neuron backpropagation values")
+        };
+
+        let mut forward_gradients = unsafe {
+            alloc_fixed_heap_array_with::<F, { INPUT_SIZE + 1 }>(F::ZERO)
+                .expect("Failed to allocate space for neuron backpropagation forward gradients")
+        };
+
+        let mut backward_gradients = unsafe {
+            alloc_fixed_heap_array_with::<F, INPUT_SIZE>(F::ZERO)
+                .expect("Failed to allocate space for neuron backpropagation backward gradients")
+        };
 
         // Set gradients and input values.
         input_values[0] = self.bias;
         forward_gradients[0] = gradient;
 
-        input_values[1..].copy_from_slice(&self.weights);
+        input_values[1..].copy_from_slice(self.weights.as_slice());
 
         for i in 0..INPUT_SIZE {
             forward_gradients[i + 1] = gradient * input[i];
@@ -463,11 +514,11 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         }
 
         // Backpropagate weights and bias using calculated gradients.
-        let output_values = policy.backpropagate(input_values, forward_gradients);
+        policy.backpropagate(&mut input_values, &forward_gradients);
 
         // Update weights and bias from the output values.
-        self.bias = output_values[0];
-        self.weights.copy_from_slice(&output_values[1..]);
+        self.bias = input_values[0];
+        self.weights.copy_from_slice(&input_values[1..]);
 
         backward_gradients
     }

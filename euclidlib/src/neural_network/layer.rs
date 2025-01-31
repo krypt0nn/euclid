@@ -1,4 +1,4 @@
-use super::prelude::*;
+use crate::prelude::*;
 
 /// Generic `Layer` type with f32 float type.
 pub type Layer32<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize> = Layer<INPUT_SIZE, OUTPUT_SIZE, f32>;
@@ -43,15 +43,17 @@ pub type Layer64<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize> = Layer<INPU
 /// assert!((output[0] - 0.7).abs() < 0.5);
 /// ```
 pub struct Layer<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> {
-    neurons: Box<[Neuron<INPUT_SIZE, F>]>
+    neurons: Box<[Neuron<INPUT_SIZE, F>; OUTPUT_SIZE]>
 }
 
 impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SIZE, OUTPUT_SIZE, F> {
     #[inline]
     /// Build neurons layer from provided neurons list.
-    pub fn from_neurons(neurons: Box<[Neuron<INPUT_SIZE, F>]>) -> Self {
+    pub fn from_neurons(neurons: impl IntoHeapArray<Neuron<INPUT_SIZE, F>, OUTPUT_SIZE>) -> Self {
         Self {
-            neurons
+            neurons: unsafe {
+                neurons.into_heap_array()
+            }
         }
     }
 
@@ -64,14 +66,16 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
         loss_function_derivative: fn(F, F) -> F
     ) -> Self {
         Self {
-            neurons: (0..OUTPUT_SIZE).map(|_| {
-                Neuron::random(
-                    activation_function,
-                    activation_function_derivative,
-                    loss_function,
-                    loss_function_derivative
-                )
-            }).collect()
+            neurons: unsafe {
+                alloc_fixed_heap_array_from(|_| {
+                    Neuron::random(
+                        activation_function,
+                        activation_function_derivative,
+                        loss_function,
+                        loss_function_derivative
+                    )
+                }).expect("Failed to allocate memory for neurons layer")
+            }
         }
     }
 
@@ -98,7 +102,7 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
 
     #[inline]
     /// Return neurons of the current layer.
-    pub const fn neurons(&self) -> &[Neuron<INPUT_SIZE, F>] {
+    pub const fn neurons(&self) -> &[Neuron<INPUT_SIZE, F>; OUTPUT_SIZE] {
         &self.neurons
     }
 
@@ -108,18 +112,17 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
             return Layer {
                 neurons: unsafe {
                     std::mem::transmute::<
-                        Box<[Neuron<INPUT_SIZE, F>]>,
-                        Box<[Neuron<NEW_INPUT_SIZE, F>]>
+                        Box<[Neuron<INPUT_SIZE, F>; OUTPUT_SIZE]>,
+                        Box<[Neuron<NEW_INPUT_SIZE, F>; NEW_OUTPUT_SIZE]>
                     >(self.neurons.clone())
                 }
             };
         }
 
-        let neurons = (0..NEW_OUTPUT_SIZE)
-            .map(|i| self.neurons[i % OUTPUT_SIZE].resize())
-            .collect();
-
-        Layer::<NEW_INPUT_SIZE, NEW_OUTPUT_SIZE, F>::from_neurons(neurons)
+        Layer::<NEW_INPUT_SIZE, NEW_OUTPUT_SIZE, F>::from_neurons(unsafe {
+            alloc_fixed_heap_array_from(|i| self.neurons[i % OUTPUT_SIZE].resize())
+                .expect("Failed to allocate memory for resized neurons layer")
+        })
     }
 
     /// Convert float type of all stored neurons to another one (quantize it).
@@ -128,9 +131,10 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
     /// you can lose precision necessary for correct work of the layer.
     pub fn quantize<T: Float>(&self) -> Layer<INPUT_SIZE, OUTPUT_SIZE, T> {
         Layer {
-            neurons: (0..OUTPUT_SIZE).map(|i| {
-                self.neurons[i].quantize::<T>()
-            }).collect()
+            neurons: unsafe {
+                alloc_fixed_heap_array_from(|i| self.neurons[i].quantize::<T>())
+                    .expect("Failed to allocate memory for quantized neurons layer")
+            }
         }
     }
 
