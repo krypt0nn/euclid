@@ -64,12 +64,10 @@ fn main() {
         })
         .collect::<Vec<usize>>();
 
-    const RADIUS: usize = 4;
-    const TOKENS: usize = 1024;
-    const EMBEDDING: usize = 4;
-    const PARAMS: usize = GenericModel::PARAMS;
+    type GenericModel = GenericWordEmbeddingsModel::<1024, 16, f64>;
 
-    type GenericModel = GenericWordEmbeddingsModel::<TOKENS, EMBEDDING, f64>;
+    const RADIUS: usize = 4;
+    const PARAMS: usize = GenericModel::PARAMS;
 
     let mut loss_input = [0; RADIUS * 2];
     let loss_output = unique_tokens.iter().position(|token| token == &word_tokens[RADIUS]).unwrap_or_default();
@@ -93,9 +91,9 @@ fn main() {
     println!("tokens = {tokens}, embeddings = {embeddings}, params = {params}\n");
 
     let mut backpropagation = Backpropagation::default()
-        .with_warmup_duration(100)
-        .with_cycle_period(100)
-        .with_cycle_radius(0.00005)
+        // .with_warmup_duration(100)
+        // .with_cycle_period(100)
+        // .with_cycle_radius(0.00005)
         .with_learn_rate(0.00001);
 
     let now = std::time::Instant::now();

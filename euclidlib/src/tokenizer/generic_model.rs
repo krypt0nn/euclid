@@ -35,18 +35,24 @@ impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> GenericMode
     }
 
     /// Get given token embedding.
-    pub fn get_embedding(&self, token: usize) -> [F; EMBEDDING_SIZE] {
-        let mut input = [F::ZERO; TOKENS_NUM];
+    pub fn get_embedding(&self, token: usize) -> Box<[F; EMBEDDING_SIZE]> {
+        let mut input = unsafe {
+            alloc_fixed_heap_array_with(F::ZERO)
+                .expect("Failed to allocate memory for word embeddings model input")
+        };
 
         input[token] = F::ONE;
 
-        self.input_layer.forward(&input)
+        self.input_layer.forward(input)
     }
 
     /// Find output token with the greatest probability of occurence
     /// among the given group of input tokens.
     pub fn predict(&self, input_tokens: &[usize]) -> usize {
-        let mut input = [F::ZERO; TOKENS_NUM];
+        let mut input = unsafe {
+            alloc_fixed_heap_array_with(F::ZERO)
+                .expect("Failed to allocate memory for word embeddings model input")
+        };
 
         for token in input_tokens {
             input[*token] = F::ONE;
@@ -104,11 +110,19 @@ impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> GenericMode
     {
         let n = tokens.len();
 
-        for i in RADIUS..n - RADIUS {
-            let mut input = [F::ZERO; TOKENS_NUM];
-            let mut output = [F::ZERO; TOKENS_NUM];
+        // Prepare input and output arrays outside of the loop for less allocations.
+        let mut input = unsafe {
+            alloc_fixed_heap_array_with(F::ZERO)
+                .expect("Failed to allocate memory for word embeddings model input")
+        };
 
-            #[allow(clippy::needless_range_loop)]
+        let mut output = unsafe {
+            alloc_fixed_heap_array_with(F::ZERO)
+                .expect("Failed to allocate memory for word embeddings model output")
+        };
+
+        for i in RADIUS..n - RADIUS {
+            // Set ones to input and output arrays where it's needed.
             for j in i - RADIUS..i + RADIUS {
                 input[tokens[j]] = F::ONE;
             }
@@ -116,6 +130,7 @@ impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> GenericMode
             input[tokens[i]]  = F::ZERO;
             output[tokens[i]] = F::ONE;
 
+            // Train on these arrays.
             let forward = self.input_layer.forward(&input);
 
             let gradients = policy.window(0, |mut policy| {
@@ -126,13 +141,27 @@ impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> GenericMode
             policy.window((EMBEDDING_SIZE + 1) * TOKENS_NUM, |mut policy| {
                 self.input_layer.backward_propagated(&input, &gradients, &mut policy);
             });
+
+            // Zero input and output arrays back.
+            for j in i - RADIUS..i + RADIUS {
+                input[tokens[j]] = F::ONE;
+            }
+
+            output[tokens[i]] = F::ZERO;
         }
     }
 
     /// Calculate loss between expected token and an actual prediction of the model.
     pub fn loss(&self, input_tokens: &[usize], expected_output: usize) -> F {
-        let mut input = [F::ZERO; TOKENS_NUM];
-        let mut output = [F::ZERO; TOKENS_NUM];
+        let mut input = unsafe {
+            alloc_fixed_heap_array_with(F::ZERO)
+                .expect("Failed to allocate memory for word embeddings model input")
+        };
+
+        let mut output = unsafe {
+            alloc_fixed_heap_array_with(F::ZERO)
+                .expect("Failed to allocate memory for word embeddings model output")
+        };
 
         for token in input_tokens {
             input[*token] = F::ONE;
@@ -140,7 +169,7 @@ impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> GenericMode
 
         output[expected_output] = F::ONE;
 
-        let hidden_input = self.input_layer.forward(&input);
+        let hidden_input = self.input_layer.forward(input);
         let probabilities = self.output_layer.forward(&hidden_input);
 
         self.output_layer.loss(&probabilities, &output)

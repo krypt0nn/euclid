@@ -8,14 +8,6 @@ repository = "https://github.com/krypt0nn/euclid"
 license = "GPL-3.0"
 edition = "2021"
 
-[profile.dev]
-opt-level = 1
-
-[profile.release]
-opt-level = 3
-lto = "fat"
-strip = true
-
 [dependencies]
 rusqlite = { version = "0.33", features = ["bundled", "blob"] }
 fastrand = "2.2"

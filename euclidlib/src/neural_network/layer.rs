@@ -151,15 +151,13 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
     }
 
     /// Calculate activated outputs of the neurons (perform forward propagation).
-    pub fn forward(&self, input: &[F; INPUT_SIZE]) -> [F; OUTPUT_SIZE] {
-        let mut output = [F::ZERO; OUTPUT_SIZE];
+    pub fn forward(&self, input: impl IntoHeapArray<F, INPUT_SIZE>) -> Box<[F; OUTPUT_SIZE]> {
+        unsafe {
+            let input = input.into_heap_array();
 
-        #[allow(clippy::needless_range_loop)]
-        for i in 0..OUTPUT_SIZE {
-            output[i] = self.neurons[i].forward(input);
+            alloc_fixed_heap_array_from(|i| self.neurons[i].forward(&input))
+                .expect("Failed to allocate memory for neurons layer outputs")
         }
-
-        output
     }
 
     #[inline]
@@ -179,18 +177,29 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
     /// and return their mean gradients for further backward propagation.
     pub fn backward(
         &mut self,
-        input: &[F; INPUT_SIZE],
-        expected_output: &[F; OUTPUT_SIZE],
+        input: impl IntoHeapArray<F, INPUT_SIZE>,
+        expected_output: impl IntoHeapArray<F, OUTPUT_SIZE>,
         policy: &mut BackpropagationSnapshot<'_, { (INPUT_SIZE + 1) * OUTPUT_SIZE }, F>
-    ) -> [F; INPUT_SIZE] {
-        let mut gradients = [F::ZERO; INPUT_SIZE];
+    ) -> Box<[F; INPUT_SIZE]> {
+        let input = unsafe {
+            input.into_heap_array()
+        };
+
+        let expected_output = unsafe {
+            expected_output.into_heap_array()
+        };
+
+        let mut gradients = unsafe {
+            alloc_fixed_heap_array_with(F::ZERO)
+                .expect("Failed to allocate memory for neurons layer backpropagation gradients")
+        };
 
         let div = F::from_float(INPUT_SIZE as f32);
 
         #[allow(clippy::needless_range_loop)]
         for i in 0..OUTPUT_SIZE {
             let neuron_gradients = policy.window::<{ INPUT_SIZE + 1 }, _>((INPUT_SIZE + 1) * i, |mut policy| {
-                self.neurons[i].backward(input, expected_output[i], &mut policy)
+                self.neurons[i].backward(&input, expected_output[i], &mut policy)
             });
 
             for j in 0..INPUT_SIZE {
@@ -209,18 +218,29 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
     /// gradients back for the layer staying before the current one.
     pub fn backward_propagated(
         &mut self,
-        input: &[F; INPUT_SIZE],
-        output_gradient: &[F; OUTPUT_SIZE],
+        input: impl IntoHeapArray<F, INPUT_SIZE>,
+        output_gradient: impl IntoHeapArray<F, OUTPUT_SIZE>,
         policy: &mut BackpropagationSnapshot<'_, { (INPUT_SIZE + 1) * OUTPUT_SIZE }, F>
-    ) -> [F; INPUT_SIZE] {
-        let mut gradients = [F::ZERO; INPUT_SIZE];
+    ) -> Box<[F; INPUT_SIZE]> {
+        let input = unsafe {
+            input.into_heap_array()
+        };
+
+        let output_gradient = unsafe {
+            output_gradient.into_heap_array()
+        };
+
+        let mut gradients = unsafe {
+            alloc_fixed_heap_array_with(F::ZERO)
+                .expect("Failed to allocate memory for neurons layer backpropagation gradients")
+        };
 
         let div = F::from_float(INPUT_SIZE as f32);
 
         #[allow(clippy::needless_range_loop)]
         for i in 0..OUTPUT_SIZE {
             let neuron_gradients = policy.window::<{ INPUT_SIZE + 1 }, _>((INPUT_SIZE + 1) * i, |mut policy| {
-                self.neurons[i].backward_propagated(input, output_gradient[i], &mut policy)
+                self.neurons[i].backward_propagated(&input, output_gradient[i], &mut policy)
             });
 
             for j in 0..INPUT_SIZE {
@@ -268,7 +288,7 @@ fn test_neurons_layer_backward_propagation() {
     }
 
     // Validate its output.
-    let output = layer.forward(&[0.23]);
+    let output = layer.forward([0.23]);
 
     assert!(output[0] < 0.5);
     assert!(output[1] > 0.5);
@@ -340,7 +360,7 @@ fn test_linked_neurons_layers_backward_propagation() {
     // Train both layers on given samples for 1000 epochs.
     for _ in 0..1000 {
         for (input, output) in examples {
-            let hidden_output = input_layer.forward(&input);
+            let hidden_output = input_layer.forward(input);
 
             let gradients = policy_output.timestep(|mut policy| {
                 output_layer.backward(&hidden_output, &[output], &mut policy)
@@ -353,7 +373,7 @@ fn test_linked_neurons_layers_backward_propagation() {
     }
 
     // Validate trained layers.
-    let hidden_output = input_layer.forward(&[-0.9, -0.3]);
+    let hidden_output = input_layer.forward([-0.9, -0.3]);
 
     let output = output_layer.forward(&hidden_output);
 

@@ -280,7 +280,10 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         if NEW_INPUT_SIZE == INPUT_SIZE {
             return Neuron {
                 weights: unsafe {
-                    std::mem::transmute(self.weights.clone())
+                    std::mem::transmute::<
+                        Box<[F; INPUT_SIZE]>,
+                        Box<[F; NEW_INPUT_SIZE]>
+                    >(self.weights.clone())
                 },
 
                 bias: self.bias,
@@ -345,7 +348,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
     /// Calculate sum of inputs multiplied by appropriate weights
     /// plus the neuron's bias.
-    pub fn make_weighted_input(&self, input: &Box<[F; INPUT_SIZE]>) -> F {
+    pub fn make_weighted_input(&self, input: &[F; INPUT_SIZE]) -> F {
         let mut output = F::ZERO;
         let mut i = 0;
 
@@ -560,7 +563,7 @@ fn test_neuron_backward_propagation() {
     }
 
     // Validate trained neuron.
-    let output = neuron.forward(&[1.0, 0.5]);
+    let output = neuron.forward([1.0, 0.5]);
 
     assert!((output - 1.5).abs() < 0.5);
     assert!(neuron.loss(output, 1.5) < 0.5);
@@ -664,8 +667,8 @@ fn test_linked_neurons_backward_propagation() {
             assert_eq!(assert_output, expected_output);
 
             // Forward pass for the first layer neurons.
-            let output_11 = neuron_11.forward(&input_11);
-            let output_12 = neuron_12.forward(&input_12);
+            let output_11 = neuron_11.forward(input_11);
+            let output_12 = neuron_12.forward(input_12);
 
             // Backward pass for the output neuron.
             let gradients = policy_21.timestep(|mut policy| {
@@ -684,10 +687,10 @@ fn test_linked_neurons_backward_propagation() {
     }
 
     // Validate trained neurons.
-    let a = neuron_11.forward(&[-1.0, 1.5]);
-    let b = neuron_12.forward(&[0.0, -1.5]);
+    let a = neuron_11.forward([-1.0, 1.5]);
+    let b = neuron_12.forward([0.0, -1.5]);
 
-    let c = neuron_21.forward(&[a, b]);
+    let c = neuron_21.forward([a, b]);
 
     assert!((c + 1.0).abs() < 0.5);
     assert!(neuron_21.loss(c, -1.0) < 0.5);
