@@ -274,6 +274,7 @@ impl<const SIZE: usize, F: Float> Backpropagation<SIZE, F> {
     }
 }
 
+#[derive(Debug, PartialEq, Eq, Hash)]
 /// Wrapper of the backpropagation policy to enforce methods execution
 /// within the same timestep for all neurons and layers within the network.
 pub struct BackpropagationSnapshot<'policy, const SIZE: usize, F: Float>(&'policy mut Backpropagation<SIZE, F>);
