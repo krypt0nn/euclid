@@ -1,4 +1,4 @@
-# Micro Natural Language Framework
+# Euclid: Stupid Natural Language Framework
 
 Simplified tool for hand-crafting small language models.
 
@@ -7,9 +7,9 @@ Simplified tool for hand-crafting small language models.
 Every model starts with input data preparation. You should search for some texts in the internet
 in plaintext format. More clean data you have - better the final model will be.
 
-- `mnlf raw create --path raw_dataset.db` - create new raw documents database.
-- `mnlf raw push --database raw_dataset.db --file input_file.txt` - insert given input file into the database.
-- `echo 'Example text' | mnlf raw stream --path raw_dataset.db` - insert stdin data into the database.
+- `euclid raw create --path raw_dataset.db` - create new raw documents database.
+- `euclid raw push --database raw_dataset.db --file input_file.txt` - insert given input file into the database.
+- `echo 'Example text' | euclid raw stream --path raw_dataset.db` - insert stdin data into the database.
 
 ## Building tokenizer
 
@@ -25,6 +25,6 @@ but very close second - we suspect the second dimension here means "domestic ani
 similar to it. Embeddings are trained using neural network with 1 hidden layer. They can improve
 language models quality by a lot by grouping different words into groups by their meaning.
 
-- `mnlf tokenizer create --path tokenizer.db` - create new tokenizer with provided vector dimensions.
-- `mnlf tokenizer fit --dataset raw_dataset.db --path tokenizer.db` - fit tokenizer language model on provided raw dataset.
-- `echo 'Example text' | mnlf stream --path tokenizer.db` - return embeddings for text in stdin.
+- `euclid tokenizer create --path tokenizer.db` - create new tokenizer with provided vector dimensions.
+- `euclid tokenizer fit --dataset raw_dataset.db --path tokenizer.db` - fit tokenizer language model on provided raw dataset.
+- `echo 'Example text' | euclid stream --path tokenizer.db` - return embeddings for text in stdin.

@@ -1,5 +1,5 @@
 {
-    description = "Micro Natural Language Framework";
+    description = "Euclid: Stupid Natural Language Framework";
 
     inputs = {
         nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";

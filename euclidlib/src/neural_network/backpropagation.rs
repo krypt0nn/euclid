@@ -281,12 +281,12 @@ pub struct BackpropagationSnapshot<'policy, const SIZE: usize, F: Float>(&'polic
 impl<const SIZE: usize, F: Float> BackpropagationSnapshot<'_, SIZE, F> {
     /// Call given callback with a slice of current backpropagation policy struct
     /// and update current one after the callback execution.
-    pub fn window<const LEN: usize, T>(&mut self, offset: usize, mut callback: impl FnMut(BackpropagationSnapshot<LEN, F>) -> T) -> T {
+    pub fn window<const WINDOW_SIZE: usize, T>(&mut self, offset: usize, mut callback: impl FnMut(BackpropagationSnapshot<WINDOW_SIZE, F>) -> T) -> T {
         let mut windowed = Backpropagation {
             timestep: self.0.timestep,
 
-            adamw_m: core::array::from_fn::<_, LEN, _>(|i| self.0.adamw_m[offset + i]),
-            adamw_v: core::array::from_fn::<_, LEN, _>(|i| self.0.adamw_v[offset + i]),
+            adamw_m: core::array::from_fn::<_, WINDOW_SIZE, _>(|i| self.0.adamw_m[offset + i]),
+            adamw_v: core::array::from_fn::<_, WINDOW_SIZE, _>(|i| self.0.adamw_v[offset + i]),
 
             adamw_beta1: self.0.adamw_beta1,
             adamw_beta2: self.0.adamw_beta2,
@@ -302,8 +302,8 @@ impl<const SIZE: usize, F: Float> BackpropagationSnapshot<'_, SIZE, F> {
 
         let output = callback(BackpropagationSnapshot(&mut windowed));
 
-        self.0.adamw_m[offset..offset + LEN].copy_from_slice(&windowed.adamw_m);
-        self.0.adamw_v[offset..offset + LEN].copy_from_slice(&windowed.adamw_v);
+        self.0.adamw_m[offset..offset + WINDOW_SIZE].copy_from_slice(&windowed.adamw_m);
+        self.0.adamw_v[offset..offset + WINDOW_SIZE].copy_from_slice(&windowed.adamw_v);
 
         output
     }

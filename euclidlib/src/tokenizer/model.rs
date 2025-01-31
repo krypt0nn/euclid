@@ -17,8 +17,8 @@ impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> Model<TOKEN
     /// Create new word embeddings model with random weights.
     pub fn random() -> Self {
         Self {
-            input_layer: Layer::new(sigmoid, sigmoid_derivative, quadratic_error, quadratic_error_derivative),
-            output_layer: Layer::new(sigmoid, sigmoid_derivative, cross_entropy, cross_entropy_derivative)
+            input_layer: Layer::sigmoid(),
+            output_layer: Layer::sigmoid()
         }
     }
 
@@ -92,6 +92,9 @@ impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> Model<TOKEN
     {
         let n = tokens.len();
 
+        let mut backpropagation_1 = Backpropagation::default();
+        let mut backpropagation_2 = Backpropagation::default();
+
         for i in RADIUS..n - RADIUS {
             let mut input = [F::ZERO; TOKENS_NUM];
             let mut output = [F::ZERO; TOKENS_NUM];
@@ -106,14 +109,23 @@ impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> Model<TOKEN
 
             let forward = self.input_layer.forward(&input);
 
-            let gradients = policy.window(0, |mut policy| {
+            let gradients = backpropagation_1.timestep(|mut policy| {
                 // TOKENS_NUM output neurons with EMBEDDING_SIZE weights + 1 bias each.
                 self.output_layer.backward(&forward, &output, &mut policy)
             });
 
-            policy.window((EMBEDDING_SIZE + 1) * TOKENS_NUM, |mut policy| {
+            backpropagation_2.timestep(|mut policy| {
                 self.input_layer.backward_propagated(&input, &gradients, &mut policy);
             });
+
+            // let gradients = policy.window(0, |mut policy| {
+            //     // TOKENS_NUM output neurons with EMBEDDING_SIZE weights + 1 bias each.
+            //     self.output_layer.backward(&forward, &output, &mut policy)
+            // });
+
+            // policy.window((EMBEDDING_SIZE + 1) * TOKENS_NUM, |mut policy| {
+            //     self.input_layer.backward_propagated(&input, &gradients, &mut policy);
+            // });
         }
     }
 

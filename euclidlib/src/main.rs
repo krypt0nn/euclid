@@ -110,13 +110,13 @@ fn main() {
 
     let mut backpropagation = Backpropagation::default()
         .with_warmup_duration(100)
-        .with_cycle_period(200)
-        .with_cycle_radius(0.0015)
-        .with_learn_rate(0.0003);
+        .with_cycle_period(100)
+        .with_cycle_radius(0.00005)
+        .with_learn_rate(0.00001);
 
     let now = std::time::Instant::now();
 
-    for i in 0..1000 {
+    for i in 0..300 {
         backpropagation.timestep(|mut policy| {
             model.train::<RADIUS>(&numeric_tokens, &mut policy);
         });
@@ -146,13 +146,11 @@ fn main() {
                 println!();
             }
 
-            if loss < 0.1 {
+            if loss < 0.5 {
                 break;
             }
         }
     }
-
-    // println!();
 
     // let mut table = String::from("token;x;y\n");
 
