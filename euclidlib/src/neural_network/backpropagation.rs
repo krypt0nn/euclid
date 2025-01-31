@@ -289,13 +289,17 @@ impl<const SIZE: usize, F: Float> BackpropagationSnapshot<'_, SIZE, F> {
         let mut windowed = Backpropagation {
             timestep: self.0.timestep,
 
-            adamw_m: Box::new(core::array::from_fn::<_, WINDOW_SIZE, _>(|i| {
-                self.0.adamw_m.get(offset + i).copied().unwrap_or(F::ZERO)
-            })),
+            adamw_m: (0..WINDOW_SIZE).map(|i| {
+                self.0.adamw_m.get(offset + i)
+                    .copied()
+                    .unwrap_or(F::ZERO)
+            }).collect(),
 
-            adamw_v: Box::new(core::array::from_fn::<_, WINDOW_SIZE, _>(|i| {
-                self.0.adamw_v.get(offset + i).copied().unwrap_or(F::ZERO)
-            })),
+            adamw_v: (0..WINDOW_SIZE).map(|i| {
+                self.0.adamw_v.get(offset + i)
+                    .copied()
+                    .unwrap_or(F::ZERO)
+            }).collect(),
 
             adamw_beta1: self.0.adamw_beta1,
             adamw_beta2: self.0.adamw_beta2,
