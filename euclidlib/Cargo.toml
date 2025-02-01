@@ -10,5 +10,6 @@ edition = "2021"
 
 [dependencies]
 rusqlite = { version = "0.33", features = ["bundled", "blob"] }
-fastrand = "2.2"
 anyhow = "1.0"
+fastrand = "2.2"
+lz4_flex = "0.11"

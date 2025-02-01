@@ -2,6 +2,8 @@ use std::collections::HashSet;
 
 use euclidlib::prelude::*;
 
+pub mod cli;
+
 fn main() {
     let document = Document::new(std::fs::read_to_string("PoliticalEconomy_truncated.txt").unwrap());
 

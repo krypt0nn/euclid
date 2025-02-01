@@ -29,12 +29,13 @@ impl<T, const N: usize> IntoHeapArray<T, N> for Box<[T; N]> {
 }
 
 impl<T: Clone, const N: usize> IntoHeapArray<T, N> for &Box<[T; N]> {
-    #[inline(always)]
+    #[inline]
     unsafe fn into_heap_array(self) -> Box<[T; N]> {
         self.clone()
     }
 }
 
+#[inline]
 /// Try to allocate `Box<[T; N]>` directly on heap.
 ///
 /// This function will request zero-allocated memory segment
@@ -62,6 +63,7 @@ pub unsafe fn alloc_fixed_heap_array<T, const N: usize>() -> Result<Box<[T; N]>,
     Ok(Box::<[T; N]>::from_raw(ptr as *mut [T; N]))
 }
 
+#[inline]
 /// Try to allocate `Box<[T; N]>` directly on heap
 /// with provided default value.
 ///
@@ -87,6 +89,7 @@ pub unsafe fn alloc_fixed_heap_array_with<T: Copy, const N: usize>(value: T) -> 
     Ok(array)
 }
 
+#[inline]
 /// Try to allocate `Box<[T; N]>` directly on heap
 /// with provided default value.
 ///

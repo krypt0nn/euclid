@@ -11,5 +11,5 @@ edition = "2021"
 [dependencies]
 euclidlib = { path = "../euclidlib" }
 
-anyhow = "1.0"
 clap = { version = "4.5", features = ["derive"] }
+anyhow = "1.0"
