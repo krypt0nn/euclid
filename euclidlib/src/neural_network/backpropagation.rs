@@ -1,3 +1,5 @@
+use crate::alloc::alloc_fixed_heap_array_from;
+
 use super::prelude::*;
 
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
@@ -290,17 +292,21 @@ impl<const SIZE: usize, F: Float> BackpropagationSnapshot<'_, SIZE, F> {
         let mut windowed = Backpropagation {
             timestep: self.0.timestep,
 
-            adamw_m: (0..WINDOW_SIZE).map(|i| {
-                self.0.adamw_m.get(offset + i)
-                    .copied()
-                    .unwrap_or(F::ZERO)
-            }).collect(),
+            adamw_m: unsafe {
+                alloc_fixed_heap_array_from::<F, WINDOW_SIZE>(|i| {
+                    self.0.adamw_m.get(offset + i)
+                        .copied()
+                        .unwrap_or(F::ZERO)
+                }).expect("Failed to allocate memory for backpropagation policy window")
+            },
 
-            adamw_v: (0..WINDOW_SIZE).map(|i| {
-                self.0.adamw_v.get(offset + i)
-                    .copied()
-                    .unwrap_or(F::ZERO)
-            }).collect(),
+            adamw_v: unsafe {
+                alloc_fixed_heap_array_from::<F, WINDOW_SIZE>(|i| {
+                    self.0.adamw_v.get(offset + i)
+                        .copied()
+                        .unwrap_or(F::ZERO)
+                }).expect("Failed to allocate memory for backpropagation policy window")
+            },
 
             adamw_beta1: self.0.adamw_beta1,
             adamw_beta2: self.0.adamw_beta2,
