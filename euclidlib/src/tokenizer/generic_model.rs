@@ -8,7 +8,7 @@ use crate::prelude::*;
 /// dimension has some meaning and allows other natural language
 /// models to use this information for much better training.
 pub struct GenericModel<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> {
-    encoder_decoder: EncoderDecoder<TOKENS_NUM, EMBEDDING_SIZE, F>
+    pub encoder_decoder: EncoderDecoder<TOKENS_NUM, EMBEDDING_SIZE, F>
 }
 
 impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> GenericModel<TOKENS_NUM, EMBEDDING_SIZE, F> {

@@ -180,6 +180,154 @@ impl Database {
 
         Ok(Some(closest_token.0))
     }
+
+    #[allow(unused_braces)]
+    /// Save given word embeddings model into the database.
+    pub fn save_model<
+        const TOKENS_NUM: usize,
+        const EMBEDDING_SIZE: usize,
+        F: Float
+    >(&self, model: &GenericWordEmbeddingsModel<TOKENS_NUM, EMBEDDING_SIZE, F>) -> anyhow::Result<()>
+    where
+        [(); { (TOKENS_NUM + 1) * F::BYTES }]: Sized,
+        [(); { (EMBEDDING_SIZE + 1) * F::BYTES }]: Sized
+    {
+        self.connection.execute_batch("DELETE FROM encoder_neurons; DELETE FROM decoder_neurons;")?;
+
+        let mut query = self.connection.prepare_cached("INSERT INTO encoder_neurons (params) VALUES (?1)")?;
+
+        for neuron in model.encoder_decoder.encoder.neurons() {
+            query.execute([neuron.to_bytes()])?;
+        }
+
+        let mut query = self.connection.prepare_cached("INSERT INTO decoder_neurons (params) VALUES (?1)")?;
+
+        for neuron in model.encoder_decoder.decoder.neurons() {
+            query.execute([neuron.to_bytes()])?;
+        }
+
+        Ok(())
+    }
+
+    /// Return input tokens number and embeddings size
+    /// of the stored model.
+    ///
+    /// Guaranteed to return `Ok(None)` if the model is not saved.
+    pub fn saved_model_params(&self) -> rusqlite::Result<Option<(usize, usize)>> {
+        let mut query = self.connection.prepare("SELECT
+            (SELECT COUNT(encoder_neurons.id) FROM encoder_neurons) as encoder_size,
+            (SELECT COUNT(decoder_neurons.id) FROM decoder_neurons) as decoder_size")?;
+
+        let sizes = query.query_row([], |row| {
+            let encoder_size = row.get::<_, usize>(0)?;
+            let decoder_size = row.get::<_, usize>(1)?;
+
+            Ok((encoder_size, decoder_size))
+        });
+
+        match sizes {
+            Ok((0, _)) | Ok((_, 0)) => Ok(None),
+            Ok((encoder_size, decoder_size)) => Ok(Some((decoder_size, encoder_size))),
+            Err(rusqlite::Error::QueryReturnedNoRows) => Ok(None),
+            Err(err) => Err(err)
+        }
+    }
+
+    /// Try to load model from the database.
+    ///
+    /// This method required you to specify *exact* size of the model.
+    ///
+    /// Guaranteed to return `Ok(None)` if the model is not saved.
+    pub fn load_model<
+        const TOKENS_NUM: usize,
+        const EMBEDDING_SIZE: usize,
+        F: Float
+    >(&self) -> anyhow::Result<Option<GenericWordEmbeddingsModel<TOKENS_NUM, EMBEDDING_SIZE, F>>>
+    where
+        [(); { TOKENS_NUM + 1 } * F::BYTES]: Sized,
+        [(); { EMBEDDING_SIZE + 1 } * F::BYTES]: Sized
+    {
+        // Prepare model-related buffers.
+
+        let mut encoder_layer = unsafe {
+            alloc_fixed_heap_array::<Neuron<TOKENS_NUM, F>, EMBEDDING_SIZE>()
+                .expect("Failed to allocate memory for word embeddings encoder layer neurons")
+        };
+
+        let mut decoder_layer = unsafe {
+            alloc_fixed_heap_array::<Neuron<EMBEDDING_SIZE, F>, TOKENS_NUM>()
+                .expect("Failed to allocate memory for word embeddings decoder layer neurons")
+        };
+
+        let mut encoder_neuron = unsafe {
+            alloc_fixed_heap_array::<u8, { (TOKENS_NUM + 1) * F::BYTES }>()
+                .expect("Failed to allocate memory for a single encoder neuron")
+        };
+
+        let mut decoder_neuron = unsafe {
+            alloc_fixed_heap_array::<u8, { (EMBEDDING_SIZE + 1) * F::BYTES }>()
+                .expect("Failed to allocate memory for a single decoder neuron")
+        };
+
+        // Check model existance and validate its sizes.
+
+        let Some((inputs, embedding)) = self.saved_model_params()? else {
+            return Ok(None);
+        };
+
+        if inputs != TOKENS_NUM {
+            anyhow::bail!("Trying to load model with input size {inputs} as {TOKENS_NUM}");
+        }
+
+        if embedding != EMBEDDING_SIZE {
+            anyhow::bail!("Trying to load model with embedding size {embedding} as {EMBEDDING_SIZE}");
+        }
+
+        // Fill encoder layer buffer.
+
+        self.connection.prepare("SELECT params FROM encoder_neurons ORDER BY id ASC")?
+            .query_map([], |row| {
+                encoder_neuron.copy_from_slice(&row.get::<_, Vec<u8>>(0)?);
+
+                let neuron = Neuron::<TOKENS_NUM, F>::from_bytes(&encoder_neuron);
+
+                Ok(neuron)
+            })?
+            .enumerate()
+            .try_for_each(|(i, neuron)| -> rusqlite::Result<()> {
+                encoder_layer[i] = neuron?;
+
+                Ok(())
+            })?;
+
+        drop(encoder_neuron);
+
+        // Fill decoder layer buffer.
+
+        self.connection.prepare("SELECT params FROM decoder_neurons ORDER BY id ASC")?
+            .query_map([], |row| {
+                decoder_neuron.copy_from_slice(&row.get::<_, Vec<u8>>(0)?);
+
+                let neuron = Neuron::<EMBEDDING_SIZE, F>::from_bytes(&decoder_neuron);
+
+                Ok(neuron)
+            })?
+            .enumerate()
+            .try_for_each(|(i, neuron)| -> rusqlite::Result<()> {
+                decoder_layer[i] = neuron?;
+
+                Ok(())
+            })?;
+
+        drop(decoder_neuron);
+
+        Ok(Some(GenericWordEmbeddingsModel {
+            encoder_decoder: EncoderDecoder::from_layers(
+                Layer::from_neurons(encoder_layer),
+                Layer::from_neurons(decoder_layer)
+            )
+        }))
+    }
 }
 
 #[test]
@@ -187,6 +335,10 @@ fn test_tokens_database() -> anyhow::Result<()> {
     let _ = std::fs::remove_file("tokens_database.db");
 
     let db = Database::open("tokens_database.db", 4096)?;
+
+    assert!(db.query_token("hello")?.is_none());
+    assert!(db.query_embedding::<f32>(1)?.is_none());
+    assert!(db.find_token::<1, f32>(&[1.0])?.is_none());
 
     db.insert_token("hello")?;
     db.insert_token("world")?;
@@ -205,6 +357,40 @@ fn test_tokens_database() -> anyhow::Result<()> {
 
     assert_eq!(db.find_token::<3, f32>(&[1.0, 2.0, 3.4])?, Some(1));
     assert_eq!(db.find_token::<3, f32>(&[1.0, 2.0, 3.6])?, Some(2));
+
+    assert!(db.saved_model_params()?.is_none());
+
+    let model = GenericWordEmbeddingsModel::<16, 4, f32>::random();
+
+    db.save_model(&model)?;
+
+    assert_eq!(db.saved_model_params()?, Some((16, 4)));
+
+    let loaded_model = db.load_model::<16, 4, f32>()?.unwrap();
+
+    for i in 0..4 {
+        assert_eq!(
+            loaded_model.encoder_decoder.encoder.neurons[i].weights,
+            model.encoder_decoder.encoder.neurons[i].weights
+        );
+
+        assert_eq!(
+            loaded_model.encoder_decoder.encoder.neurons[i].bias,
+            model.encoder_decoder.encoder.neurons[i].bias
+        );
+    }
+
+    for i in 0..16 {
+        assert_eq!(
+            loaded_model.encoder_decoder.decoder.neurons[i].weights,
+            model.encoder_decoder.decoder.neurons[i].weights
+        );
+
+        assert_eq!(
+            loaded_model.encoder_decoder.decoder.neurons[i].bias,
+            model.encoder_decoder.decoder.neurons[i].bias
+        );
+    }
 
     let _ = std::fs::remove_file("tokens_database.db");
 

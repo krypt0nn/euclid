@@ -21,6 +21,15 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> EncoderDecoder
     pub const MODEL_PARAMS: usize = Self::ENCODER_PARAMS + Self::DECODER_PARAMS;
 
     #[inline]
+    /// Create encoder-decoder model from given compatible layers.
+    pub fn from_layers(encoder: Layer<INPUT_SIZE, OUTPUT_SIZE, F>, decoder: Layer<OUTPUT_SIZE, INPUT_SIZE, F>) -> Self {
+        Self {
+            encoder,
+            decoder
+        }
+    }
+
+    #[inline]
     /// Create new model with random weights.
     pub fn random() -> Self {
         Self {

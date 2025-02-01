@@ -200,8 +200,11 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     /// Return bytes slice with current neuron's params.
     ///
     /// Use `Neuron::from_bytes` to restore it.
-    pub fn to_bytes(&self) -> [u8; (INPUT_SIZE + 1) * F::BYTES] {
-        let mut bytes = [0; (INPUT_SIZE + 1) * F::BYTES];
+    pub fn to_bytes(&self) -> Box<[u8; (INPUT_SIZE + 1) * F::BYTES]> {
+        let mut bytes = unsafe {
+            alloc_fixed_heap_array_with::<u8, { (INPUT_SIZE + 1) * F::BYTES }>(0)
+                .expect("Failed to allocate memory for neuron parameters")
+        };
 
         bytes[..F::BYTES].copy_from_slice(&self.bias.to_bytes());
 
