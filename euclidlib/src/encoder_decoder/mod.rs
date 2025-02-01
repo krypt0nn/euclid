@@ -54,7 +54,7 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> EncoderDecoder
     /// Train the model to perform `encode(input) = output` conversion.
     ///
     /// Returns gradients from the encoder layer.
-    pub fn train_encode(
+    pub fn train_encoder(
         &mut self,
         input: impl IntoHeapArray<F, INPUT_SIZE>,
         output: impl IntoHeapArray<F, OUTPUT_SIZE>,
@@ -71,7 +71,7 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> EncoderDecoder
     /// Train the model to perform `decode(output) = input` conversion.
     ///
     /// Returns gradients from the decoder layer.
-    pub fn train_decode(
+    pub fn train_decoder(
         &mut self,
         output: impl IntoHeapArray<F, OUTPUT_SIZE>,
         input: impl IntoHeapArray<F, INPUT_SIZE>,

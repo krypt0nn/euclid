@@ -22,10 +22,9 @@ fn main() {
         })
         .collect::<Vec<usize>>();
 
-    type GenericModel = GenericWordEmbeddingsModel::<2048, 2, 16, f64>;
+    type GenericModel = GenericWordEmbeddingsModel::<2048, 16, f64>;
 
-    const RADIUS: usize = 4;
-    const PARAMS: usize = GenericModel::PARAMS;
+    const RADIUS: usize = 8;
 
     let mut loss_input = [0; RADIUS * 2];
     let loss_output = unique_tokens.iter().position(|token| token == &word_tokens[RADIUS]).unwrap_or_default();
@@ -42,32 +41,32 @@ fn main() {
     let economy   = unique_tokens.iter().position(|token| token == "economy").unwrap_or_default();
     let wealth    = unique_tokens.iter().position(|token| token == "wealth").unwrap_or_default();
 
-    // let mut model = WordEmbeddingsModel::from_generic(GenericModel::random()).unwrap();
+    let mut model = WordEmbeddingsModel::from_generic(GenericModel::random()).unwrap();
 
-    // let (tokens, embeddings, context, params) = model.params();
+    let (tokens, embeddings, params) = model.params();
 
-    // println!("tokens = {tokens}, embeddings = {embeddings}, context = {context}, params = {params}\n");
+    println!("tokens = {tokens}, embeddings = {embeddings}, params = {params}\n");
 
-    let mut model = GenericModel::random();
+    // let mut model = GenericModel::random();
 
     let mut backpropagation = Backpropagation::default()
-        // .with_warmup_duration(5)
-        // .with_cycle_period(20)
-        // .with_cycle_radius(0.0002)
-        .with_learn_rate(0.0001);
+        .with_warmup_duration(10)
+        .with_cycle_period(20)
+        .with_cycle_radius(0.0015)
+        .with_learn_rate(0.0015);
 
     let now = std::time::Instant::now();
 
     for i in 0..500 {
         backpropagation.timestep(|mut policy| {
-            model.train(&numeric_tokens, &mut policy);
+            model.train::<RADIUS>(&numeric_tokens, &mut policy);
         });
 
         let loss = model.loss(&loss_input, loss_output);
 
         println!("loss = {loss:.8}, elapsed = {} seconds", now.elapsed().as_secs());
 
-        if i % 5 == 0 && i != 0 {
+        if i % 10 == 0 && i != 0 {
             let political = model.encode(political);
             let economy   = model.encode(economy);
             let wealth    = model.encode(wealth);
@@ -80,9 +79,9 @@ fn main() {
 
             println!();
 
-            println!("distance(political, economy) = {}", model.distance(&political, &economy));
-            println!("distance(political, wealth)  = {}", model.distance(&political, &wealth));
-            println!("distance(economy,   wealth)  = {}", model.distance(&economy,   &wealth));
+            println!("distance(political, economy) = {}", cosine_similarity::<64, _>(&political, &economy));
+            println!("distance(political, wealth)  = {}", cosine_similarity::<64, _>(&political, &wealth));
+            println!("distance(economy,   wealth)  = {}", cosine_similarity::<64, _>(&economy,   &wealth));
 
             println!();
 
