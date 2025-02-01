@@ -17,7 +17,7 @@ pub use qf8::*;
 pub trait Float:
     Add<Output = Self> + Sub<Output = Self> + Mul<Output = Self> + Div<Output = Self> +
     AddAssign + SubAssign + MulAssign + DivAssign + Neg<Output = Self> +
-    Default + Clone + Copy + PartialEq + std::fmt::Display + Sized
+    Default + Clone + Copy + PartialEq + std::fmt::Debug + std::fmt::Display + Sized
 {
     /// Constant equal to `Self::from_float(0.0)`.
     /// Needed for compiler optimizations.

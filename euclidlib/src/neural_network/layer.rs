@@ -162,7 +162,14 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
 
     #[inline]
     /// Calculate loss function value.
-    pub fn loss(&self, actual_output: &[F; OUTPUT_SIZE], expected_output: &[F; OUTPUT_SIZE]) -> F {
+    pub fn loss(
+        &self,
+        actual_output: impl IntoHeapArray<F, OUTPUT_SIZE>,
+        expected_output: impl IntoHeapArray<F, OUTPUT_SIZE>
+    ) -> F {
+        let actual_output = unsafe { actual_output.into_heap_array() };
+        let expected_output = unsafe { expected_output.into_heap_array() };
+
         let mut loss = F::ZERO;
 
         #[allow(clippy::needless_range_loop)]
