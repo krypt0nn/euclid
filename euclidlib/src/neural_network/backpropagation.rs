@@ -22,13 +22,13 @@ pub struct Backpropagation<const SIZE: usize, F: Float> {
     /// Current backpropagation timestep.
     ///
     /// Shows amount of already passed backpropagations.
-    timestep: u32,
+    pub timestep: u32,
 
     /// AdamW backpropagation optimization momentums.
-    adamw_m: Box<[F]>,
+    pub adamw_m: Box<[F]>,
 
     /// AdamW backpropagation optimization squared momentums.
-    adamw_v: Box<[F]>,
+    pub adamw_v: Box<[F]>,
 
     /// AdamW backpropagation optimization hyperparameter.
     ///
@@ -38,7 +38,7 @@ pub struct Backpropagation<const SIZE: usize, F: Float> {
     /// will give more weight to the current gradient.
     ///
     /// Recommended values: 0.9, 0.95, 0.99.
-    adamw_beta1: F,
+    pub adamw_beta1: F,
 
     /// AdamW backpropagation optimization hyperparameter.
     ///
@@ -48,7 +48,7 @@ pub struct Backpropagation<const SIZE: usize, F: Float> {
     /// will give more weight to the current squared gradient.
     ///
     /// Recommended values: 0.999, 0.995, 0.99.
-    adamw_beta2: F,
+    pub adamw_beta2: F,
 
     /// AdamW backpropagation optimization hyperparameter.
     ///
@@ -58,25 +58,25 @@ pub struct Backpropagation<const SIZE: usize, F: Float> {
     /// more heavily.
     ///
     /// Recommended values: 0.01, 0.001, 0.0001.
-    adamw_lambda: F,
+    pub adamw_lambda: F,
 
     /// Amount of backpropagation timesteps to reach the target learn rate value.
     ///
     /// If set to 0 then no warmup will be applied.
-    warmup_duration: u32,
+    pub warmup_duration: u32,
 
     /// Maximal difference from the target learn rate value.
     ///
     /// Actual learn rate will vary in range `[target - radius, target + radius]`.
     ///
     /// If set to 0 then no cyclic schedule will be applied.
-    cycle_radius: F,
+    pub cycle_radius: F,
 
     /// Amount of timesteps of backpropagation for going full cicle
     /// of learning rate changing.
     ///
     /// If set to 0 then no cyclic schedule will be applied.
-    cycle_period: u32,
+    pub cycle_period: u32,
 
     /// Target learn rate of the backpropagation.
     ///
@@ -98,7 +98,7 @@ pub struct Backpropagation<const SIZE: usize, F: Float> {
     ///                    +-------------------------------> time
     ///                     ^^^^^^ warmup
     /// ```
-    learn_rate: F
+    pub learn_rate: F
 }
 
 impl<const SIZE: usize, F: Float> Default for Backpropagation<SIZE, F> {

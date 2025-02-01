@@ -6,13 +6,19 @@ use crate::prelude::*;
 /// it back to the proper input. In other words, this model trains
 /// to perform `decode(encode(original)) == original` operation.
 pub struct EncoderDecoder<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> {
-    encoder: Layer<INPUT_SIZE, OUTPUT_SIZE, F>,
-    decoder: Layer<OUTPUT_SIZE, INPUT_SIZE, F>
+    pub encoder: Layer<INPUT_SIZE, OUTPUT_SIZE, F>,
+    pub decoder: Layer<OUTPUT_SIZE, INPUT_SIZE, F>
 }
 
 impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> EncoderDecoder<INPUT_SIZE, OUTPUT_SIZE, F> {
+    /// Amount of parameters in the encoder.
+    pub const ENCODER_PARAMS: usize = Layer::<INPUT_SIZE, OUTPUT_SIZE, F>::PARAMS;
+
+    /// Amount of parameters in the decoder.
+    pub const DECODER_PARAMS: usize = Layer::<OUTPUT_SIZE, INPUT_SIZE, F>::PARAMS;
+
     /// Amount of parameters in the model.
-    pub const PARAMS: usize = (INPUT_SIZE + 1) * OUTPUT_SIZE + (OUTPUT_SIZE + 1) * INPUT_SIZE;
+    pub const MODEL_PARAMS: usize = Self::ENCODER_PARAMS + Self::DECODER_PARAMS;
 
     #[inline]
     /// Create new model with random weights.
@@ -44,6 +50,7 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> EncoderDecoder
         self.decoder.forward(output)
     }
 
+    #[allow(unused_braces)]
     /// Train the model to perform `encode(input) = output` conversion.
     ///
     /// Returns gradients from the encoder layer.
@@ -51,11 +58,16 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> EncoderDecoder
         &mut self,
         input: impl IntoHeapArray<F, INPUT_SIZE>,
         output: impl IntoHeapArray<F, OUTPUT_SIZE>,
-        policy: &mut BackpropagationSnapshot<{ (INPUT_SIZE + 1) * OUTPUT_SIZE }, F>
-    ) -> Box<[F; INPUT_SIZE]> {
+        policy: &mut BackpropagationSnapshot<{ Layer::<INPUT_SIZE, OUTPUT_SIZE, F>::PARAMS }, F>
+    ) -> Box<[F; INPUT_SIZE]>
+    where
+        [(); { Layer::<INPUT_SIZE, OUTPUT_SIZE, F>::PARAMS }]: Sized,
+        [(); { Neuron::<INPUT_SIZE, F>::PARAMS }]: Sized
+    {
         self.encoder.backward(input, output, policy)
     }
 
+    #[allow(unused_braces)]
     /// Train the model to perform `decode(output) = input` conversion.
     ///
     /// Returns gradients from the decoder layer.
@@ -63,8 +75,12 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> EncoderDecoder
         &mut self,
         output: impl IntoHeapArray<F, OUTPUT_SIZE>,
         input: impl IntoHeapArray<F, INPUT_SIZE>,
-        policy: &mut BackpropagationSnapshot<{ (OUTPUT_SIZE + 1) * INPUT_SIZE }, F>
-    ) -> Box<[F; OUTPUT_SIZE]> {
+        policy: &mut BackpropagationSnapshot<{ Layer::<OUTPUT_SIZE, INPUT_SIZE, F>::PARAMS }, F>
+    ) -> Box<[F; OUTPUT_SIZE]>
+    where
+        [(); { Layer::<OUTPUT_SIZE, INPUT_SIZE, F>::PARAMS }]: Sized,
+        [(); { Neuron::<OUTPUT_SIZE, F>::PARAMS }]: Sized
+    {
         self.decoder.backward(output, input, policy)
     }
 
@@ -73,20 +89,22 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> EncoderDecoder
     pub fn train(
         &mut self,
         input: impl IntoHeapArray<F, INPUT_SIZE>,
-        policy: &mut BackpropagationSnapshot<{ Self::PARAMS }, F>
+        policy: &mut BackpropagationSnapshot<{ Self::MODEL_PARAMS }, F>
     ) where
-        [(); { (OUTPUT_SIZE + 1) * INPUT_SIZE }]: Sized,
-        [(); { (INPUT_SIZE + 1) * OUTPUT_SIZE }]: Sized
+        [(); { Layer::<INPUT_SIZE, OUTPUT_SIZE, F>::PARAMS }]: Sized,
+        [(); { Layer::<OUTPUT_SIZE, INPUT_SIZE, F>::PARAMS }]: Sized,
+        [(); { Neuron::<INPUT_SIZE, F>::PARAMS }]: Sized,
+        [(); { Neuron::<OUTPUT_SIZE, F>::PARAMS }]: Sized
     {
         let input = unsafe { input.into_heap_array() };
 
         let encoded = self.encoder.forward(&input);
 
-        let gradients = policy.window::<{ (OUTPUT_SIZE + 1) * INPUT_SIZE }, _>(0, |mut policy| {
+        let gradients = policy.window::<{ Layer::<OUTPUT_SIZE, INPUT_SIZE, F>::PARAMS }, _>(0, |mut policy| {
             self.decoder.backward(&encoded, &input, &mut policy)
         });
 
-        policy.window::<{ (INPUT_SIZE + 1) * OUTPUT_SIZE }, _>((OUTPUT_SIZE + 1) * INPUT_SIZE, |mut policy| {
+        policy.window(Layer::<OUTPUT_SIZE, INPUT_SIZE, F>::PARAMS, |mut policy| {
             self.encoder.backward_propagated(&input, &gradients, &mut policy);
         });
     }

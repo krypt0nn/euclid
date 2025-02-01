@@ -43,10 +43,13 @@ pub type Layer64<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize> = Layer<INPU
 /// assert!((output[0] - 0.7).abs() < 0.5);
 /// ```
 pub struct Layer<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> {
-    neurons: Box<[Neuron<INPUT_SIZE, F>; OUTPUT_SIZE]>
+    pub neurons: Box<[Neuron<INPUT_SIZE, F>; OUTPUT_SIZE]>
 }
 
 impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SIZE, OUTPUT_SIZE, F> {
+    /// Amount of parameters of the current layer.
+    pub const PARAMS: usize = Neuron::<INPUT_SIZE, F>::PARAMS * OUTPUT_SIZE;
+
     #[inline]
     /// Build neurons layer from provided neurons list.
     pub fn from_neurons(neurons: impl IntoHeapArray<Neuron<INPUT_SIZE, F>, OUTPUT_SIZE>) -> Self {
@@ -180,14 +183,15 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
         loss
     }
 
+    #[allow(unused_braces)]
     /// Update weights and biases of the neurons in the current layer
     /// and return their mean gradients for further backward propagation.
     pub fn backward(
         &mut self,
         input: impl IntoHeapArray<F, INPUT_SIZE>,
         expected_output: impl IntoHeapArray<F, OUTPUT_SIZE>,
-        policy: &mut BackpropagationSnapshot<'_, { (INPUT_SIZE + 1) * OUTPUT_SIZE }, F>
-    ) -> Box<[F; INPUT_SIZE]> {
+        policy: &mut BackpropagationSnapshot<'_, { Self::PARAMS }, F>
+    ) -> Box<[F; INPUT_SIZE]> where [(); Neuron::<INPUT_SIZE, F>::PARAMS]: Sized {
         let input = unsafe {
             input.into_heap_array()
         };
@@ -203,9 +207,8 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
 
         let div = F::from_float(INPUT_SIZE as f32);
 
-        #[allow(clippy::needless_range_loop)]
         for i in 0..OUTPUT_SIZE {
-            let neuron_gradients = policy.window::<{ INPUT_SIZE + 1 }, _>((INPUT_SIZE + 1) * i, |mut policy| {
+            let neuron_gradients = policy.window(Neuron::<INPUT_SIZE, F>::PARAMS * i, |mut policy| {
                 self.neurons[i].backward(&input, expected_output[i], &mut policy)
             });
 
@@ -227,8 +230,8 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
         &mut self,
         input: impl IntoHeapArray<F, INPUT_SIZE>,
         output_gradient: impl IntoHeapArray<F, OUTPUT_SIZE>,
-        policy: &mut BackpropagationSnapshot<'_, { (INPUT_SIZE + 1) * OUTPUT_SIZE }, F>
-    ) -> Box<[F; INPUT_SIZE]> {
+        policy: &mut BackpropagationSnapshot<'_, { Self::PARAMS }, F>
+    ) -> Box<[F; INPUT_SIZE]> where [(); Neuron::<INPUT_SIZE, F>::PARAMS]: Sized {
         let input = unsafe {
             input.into_heap_array()
         };
@@ -244,9 +247,8 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
 
         let div = F::from_float(INPUT_SIZE as f32);
 
-        #[allow(clippy::needless_range_loop)]
         for i in 0..OUTPUT_SIZE {
-            let neuron_gradients = policy.window::<{ INPUT_SIZE + 1 }, _>((INPUT_SIZE + 1) * i, |mut policy| {
+            let neuron_gradients = policy.window(Neuron::<INPUT_SIZE, F>::PARAMS * i, |mut policy| {
                 self.neurons[i].backward_propagated(&input, output_gradient[i], &mut policy)
             });
 
