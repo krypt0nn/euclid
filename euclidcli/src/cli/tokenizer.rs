@@ -1,6 +1,9 @@
 use std::io::Write;
 use std::rc::Rc;
 use std::sync::Mutex;
+use std::collections::HashSet;
+use std::time::Instant;
+use std::fs::File;
 use std::path::PathBuf;
 
 use clap::Parser;
@@ -182,40 +185,43 @@ impl TokenizerCLI {
                         println!("⏳ Parsing document №{i} (\"{}\")...", &document.name);
                     }
 
-                    let now = std::time::Instant::now();
+                    let now = Instant::now();
+                    let mut unique_tokens = HashSet::new();
 
                     for token in parser.parse(&document) {
-                        let token = database.insert_token(token)?;
+                        if unique_tokens.insert(token.clone()) {
+                            let token = database.insert_token(token)?;
 
-                        if token >= model_size {
-                            println!("⏳ Tokens limit reached. Upscaling the word embeddings model...");
+                            if token >= model_size {
+                                println!("⏳ Tokens limit reached. Upscaling the word embeddings model...");
 
-                            match model.upscale() {
-                                Some(scaled) => model = scaled,
+                                match model.upscale() {
+                                    Some(scaled) => model = scaled,
 
-                                None => anyhow::bail!("Failed to upscale word embeddings mdoel")
+                                    None => anyhow::bail!("Failed to upscale word embeddings mdoel")
+                                }
+
+                                let params = model.params();
+
+                                model_size = params.input_tokens as i64;
+
+                                println!("{}", "✅ Model upscaled".green());
+                                println!("              Input tokens: {}", format!("{}", params.input_tokens).yellow());
+                                println!("      Embedding dimensions: {}", format!("{}", params.embedding_dimensions).yellow());
+                                println!("  Embedding context radius: {}", format!("{}", params.embedding_context_radius).yellow());
+                                println!("                Parameters: {}", format!("{}", params.parameters).yellow());
+
+                                println!("⏳ Saving updated model to the database...");
+
+                                database.save_dynamic_model::<f32>(&model)?;
+
+                                println!("{}", "✅ Model saved".green());
                             }
 
-                            let params = model.params();
+                            let embedding = model.encode(token as usize);
 
-                            model_size = params.input_tokens as i64;
-
-                            println!("{}", "✅ Model upscaled".green());
-                            println!("              Input tokens: {}", format!("{}", params.input_tokens).yellow());
-                            println!("      Embedding dimensions: {}", format!("{}", params.embedding_dimensions).yellow());
-                            println!("  Embedding context radius: {}", format!("{}", params.embedding_context_radius).yellow());
-                            println!("                Parameters: {}", format!("{}", params.parameters).yellow());
-
-                            println!("⏳ Saving updated model to the database...");
-
-                            database.save_dynamic_model::<f32>(&model)?;
-
-                            println!("{}", "✅ Model saved".green());
+                            database.insert_embedding::<f32>(token, &embedding)?;
                         }
-
-                        let embedding = model.encode(token as usize);
-
-                        database.insert_embedding::<f32>(token, &embedding)?;
                     }
 
                     println!("{}", format!("✅ Document processed after {:.1} seconds", now.elapsed().as_secs_f32()).green());
@@ -288,7 +294,7 @@ impl TokenizerCLI {
                 let parser = DocumentsParser::new(lowercase);
                 let mut epoch = 1;
 
-                let training_start = std::time::Instant::now();
+                let training_start = Instant::now();
 
                 loop {
                     println!();
@@ -309,7 +315,7 @@ impl TokenizerCLI {
                                 println!("  ⏳ Parsing document №{i} (\"{}\")...", &document.name);
                             }
 
-                            let now = std::time::Instant::now();
+                            let now = Instant::now();
 
                             let document = parser.parse(&document)
                                 .into_iter()
@@ -409,7 +415,7 @@ impl TokenizerCLI {
                     }
                 };
 
-                let mut file = match std::fs::File::create(&csv) {
+                let mut file = match File::create(&csv) {
                     Ok(file) => file,
                     Err(err) => {
                         eprintln!("{}", format!("🧯 Failed to create csv file: {err}").red());
