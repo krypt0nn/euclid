@@ -107,6 +107,8 @@ impl TokenizerCLI {
                 let result = dataset.for_each(move |i, document| {
                     println!("⏳ Processing document №{i}...");
 
+                    let now = std::time::Instant::now();
+
                     for token in parser.parse(&document) {
                         let token = database.insert_token(token)?;
 
@@ -135,6 +137,8 @@ impl TokenizerCLI {
 
                         database.insert_embedding::<f32>(token, &embedding)?;
                     }
+
+                    println!("{}", format!("✅ Document processed after {:.1} seconds", now.elapsed().as_millis() as f64 / 1000.0).green());
 
                     Ok(())
                 });
