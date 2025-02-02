@@ -8,7 +8,12 @@ pub mod database;
 pub mod prelude {
     pub use super::parser::Parser as DocumentsParser;
     pub use super::generic_model::GenericModel as GenericWordEmbeddingsModel;
-    pub use super::sized_model::SizedModel as WordEmbeddingsModel;
+
+    pub use super::sized_model::{
+        SizedModelParams as WordEmbeddingsModelParams,
+        SizedModelLoss as WordEmbeddingsModelLoss,
+        SizedModel as WordEmbeddingsModel
+    };
 
     pub use super::database::prelude::*;
 

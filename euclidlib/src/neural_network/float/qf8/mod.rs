@@ -258,6 +258,12 @@ impl<const M: u32, const R1: u32, const R2: u32, const R3: u32, const R4: u32> s
     }
 }
 
+impl<const M: u32, const R1: u32, const R2: u32, const R3: u32, const R4: u32> PartialOrd for QFloat8<M, R1, R2, R3, R4> {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.as_f64().partial_cmp(&other.as_f64())
+    }
+}
+
 impl<const M: u32, const R1: u32, const R2: u32, const R3: u32, const R4: u32> Neg for QFloat8<M, R1, R2, R3, R4> {
     type Output = Self;
 

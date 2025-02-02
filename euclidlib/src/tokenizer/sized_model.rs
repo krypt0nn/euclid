@@ -17,6 +17,24 @@ fn scale_slice<const LEN: usize, F: Float>(slice: &[F]) -> Box<[F; LEN]> {
     scaled
 }
 
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Information about the dynamically sized model.
+pub struct SizedModelParams {
+    pub input_tokens: usize,
+    pub embedding_dimensions: usize,
+    pub parameters: usize,
+    pub embedding_context_radius: usize
+}
+
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
+/// Information about the loss calculated over the long sequence of tokens.
+pub struct SizedModelLoss<F: Float> {
+    pub min_loss: F,
+    pub mean_loss: F,
+    pub max_loss: F,
+    pub total_loss: F
+}
+
 #[derive(Debug, Clone, PartialEq)]
 /// Dynamically sized word embeddings language model.
 pub enum SizedModel<F: Float> {
@@ -147,16 +165,50 @@ impl<F: Float> SizedModel<F> {
         }
     }
 
-    /// Get amount of input tokens, embedding dimensions and parameters
-    /// in the current model size variant.
-    pub fn params(&self) -> (usize, usize, usize) {
+    /// Get information about the underlying standard generic model.
+    pub const fn params(&self) -> SizedModelParams {
         match self {
-            Self::Tiny(_)   => (1024,    32,   GenericWordEmbeddingsModel::<1024,    32,   F>::PARAMS),
-            Self::Small(_)  => (4096,    64,   GenericWordEmbeddingsModel::<4096,    64,   F>::PARAMS),
-            Self::Medium(_) => (16384,   128,  GenericWordEmbeddingsModel::<16384,   128,  F>::PARAMS),
-            Self::Large(_)  => (65536,   256,  GenericWordEmbeddingsModel::<65536,   256,  F>::PARAMS),
-            Self::Huge(_)   => (262144,  512,  GenericWordEmbeddingsModel::<262144,  512,  F>::PARAMS),
-            Self::Giant(_)  => (1048576, 1024, GenericWordEmbeddingsModel::<1048576, 1024, F>::PARAMS)
+            Self::Tiny(_) => SizedModelParams {
+                input_tokens: 1024,
+                embedding_dimensions: 32,
+                parameters: GenericWordEmbeddingsModel::<1024, 32, F>::PARAMS,
+                embedding_context_radius: 4
+            },
+
+            Self::Small(_) => SizedModelParams {
+                input_tokens: 4096,
+                embedding_dimensions: 64,
+                parameters: GenericWordEmbeddingsModel::<4096, 64, F>::PARAMS,
+                embedding_context_radius: 4
+            },
+
+            Self::Medium(_) => SizedModelParams {
+                input_tokens: 16384,
+                embedding_dimensions: 128,
+                parameters: GenericWordEmbeddingsModel::<16384, 128, F>::PARAMS,
+                embedding_context_radius: 8
+            },
+
+            Self::Large(_) => SizedModelParams {
+                input_tokens: 65536,
+                embedding_dimensions: 256,
+                parameters: GenericWordEmbeddingsModel::<65536, 256, F>::PARAMS,
+                embedding_context_radius: 8
+            },
+
+            Self::Huge(_) => SizedModelParams {
+                input_tokens: 262144,
+                embedding_dimensions: 512,
+                parameters: GenericWordEmbeddingsModel::<262144, 512, F>::PARAMS,
+                embedding_context_radius: 12
+            },
+
+            Self::Giant(_) => SizedModelParams {
+                input_tokens: 1048576,
+                embedding_dimensions: 1024,
+                parameters: GenericWordEmbeddingsModel::<1048576, 1024, F>::PARAMS,
+                embedding_context_radius: 12
+            }
         }
     }
 
@@ -256,6 +308,42 @@ impl<F: Float> SizedModel<F> {
             Self::Huge(model)   => model.loss(input_tokens, expected_output),
             Self::Giant(model)  => model.loss(input_tokens, expected_output)
         }
+    }
+
+    /// Calculate loss statistics on the given tokens sequence.
+    pub fn total_loss(&self, tokens: &[usize]) -> SizedModelLoss<F> {
+        fn window_over<F: Float>(tokens: &[usize], radius: usize, model: &SizedModel<F>) -> SizedModelLoss<F> {
+            let mut window = vec![0; radius * 2];
+
+            let n = tokens.len();
+
+            let mut loss_stats = SizedModelLoss::default();
+            let mut k = 1;
+
+            for i in radius..n - radius {
+                window[..radius].copy_from_slice(&tokens[i - radius..i]);
+                window[radius..].copy_from_slice(&tokens[i + 1..i + 1 + radius]);
+
+                let loss = model.loss(&window, tokens[i]);
+
+                if loss < loss_stats.min_loss {
+                    loss_stats.min_loss = loss;
+                } else if loss > loss_stats.max_loss {
+                    loss_stats.max_loss = loss;
+                }
+
+                loss_stats.total_loss += loss;
+                loss_stats.mean_loss = loss_stats.total_loss / F::from_float(k as f32);
+
+                k += 1;
+            }
+
+            loss_stats
+        }
+
+        let params = self.params();
+
+        window_over(tokens, params.embedding_context_radius, self)
     }
 }
 
