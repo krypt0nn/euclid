@@ -338,7 +338,7 @@ impl<const SIZE: usize, F: Float> BackpropagationSnapshot<'_, SIZE, F> {
     /// It's expected that values and gradients have `SIZE` values.
     pub fn backpropagate(&mut self, values: &mut Box<[F; SIZE]>, gradients: &[F; SIZE]) {
         // Learn rate warmup.
-        let learn_rate = if self.0.timestep < self.0.warmup_duration {
+        let mut learn_rate = if self.0.timestep < self.0.warmup_duration {
             self.0.learn_rate * F::from_float(self.0.timestep as f32 / self.0.warmup_duration as f32)
         }
 
@@ -359,6 +359,10 @@ impl<const SIZE: usize, F: Float> BackpropagationSnapshot<'_, SIZE, F> {
             // Calculate current sine value, scale it by the radius and add it to the learn rate.
             self.0.learn_rate + self.0.cycle_radius * F::from_float((2.0 * std::f32::consts::PI * cycle_value).sin())
         };
+
+        if learn_rate <= F::ZERO {
+            learn_rate = F::EPSILON;
+        }
 
         // Calculate AdamW beta powers.
         let adamw_inv_beta1_t = F::ONE - self.0.adamw_beta1.powi(self.0.timestep as i32);

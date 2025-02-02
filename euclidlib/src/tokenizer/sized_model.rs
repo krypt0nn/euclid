@@ -326,6 +326,10 @@ impl<F: Float> SizedModel<F> {
 
                 let loss = model.loss(&window, tokens[i]);
 
+                if k == 1 {
+                    loss_stats.min_loss = loss;
+                }
+
                 if loss < loss_stats.min_loss {
                     loss_stats.min_loss = loss;
                 } else if loss > loss_stats.max_loss {
