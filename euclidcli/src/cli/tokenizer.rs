@@ -164,15 +164,22 @@ impl TokenizerCLI {
                     }
                 };
 
-                let mut model_size = model.params().input_tokens as i64;
+                let params = model.params();
+                let mut model_size = params.input_tokens as i64;
+
+                println!("{}", "✅ Model loaded".green());
+                println!("              Input tokens: {}", format!("{}", params.input_tokens).yellow());
+                println!("      Embedding dimensions: {}", format!("{}", params.embedding_dimensions).yellow());
+                println!("  Embedding context radius: {}", format!("{}", params.embedding_context_radius).yellow());
+                println!("                Parameters: {}", format!("{}", params.parameters).yellow());
 
                 let parser = DocumentsParser::new(lowercase);
 
                 let result = dataset.for_each(move |i, document| {
                     if document.name.is_empty() {
-                        println!("  ⏳ Parsing document №{i}...");
+                        println!("⏳ Parsing document №{i}...");
                     } else {
-                        println!("  ⏳ Parsing document №{i} (\"{}\")...", &document.name);
+                        println!("⏳ Parsing document №{i} (\"{}\")...", &document.name);
                     }
 
                     let now = std::time::Instant::now();
