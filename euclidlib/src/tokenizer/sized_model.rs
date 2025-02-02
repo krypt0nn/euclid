@@ -24,8 +24,8 @@ pub enum SizedModel<F: Float> {
     // ! in other parts of the code as well and you will have to find and
     // ! update them there too.
 
-    /// 1K tokens, 16 dimensions, 4 context tokens, 34K parameters.
-    Tiny(GenericWordEmbeddingsModel<1024, 16, F>),
+    /// 1K tokens, 32 dimensions, 4 context tokens, 34K parameters.
+    Tiny(GenericWordEmbeddingsModel<1024, 32, F>),
 
     /// 4K tokens, 64 dimensions, 4 context tokens, 500K parameters.
     Small(GenericWordEmbeddingsModel<4096, 64, F>),
@@ -102,7 +102,7 @@ impl<F: Float> SizedModel<F> {
     /// in the current model size variant.
     pub fn params(&self) -> (usize, usize, usize) {
         match self {
-            Self::Tiny(_)   => (1024,    16,   GenericWordEmbeddingsModel::<1024,    16,   F>::PARAMS),
+            Self::Tiny(_)   => (1024,    32,   GenericWordEmbeddingsModel::<1024,    32,   F>::PARAMS),
             Self::Small(_)  => (4096,    64,   GenericWordEmbeddingsModel::<4096,    64,   F>::PARAMS),
             Self::Medium(_) => (16384,   128,  GenericWordEmbeddingsModel::<16384,   128,  F>::PARAMS),
             Self::Large(_)  => (65536,   256,  GenericWordEmbeddingsModel::<65536,   256,  F>::PARAMS),
@@ -150,11 +150,11 @@ impl<F: Float> SizedModel<F> {
     where
         // This incredible where statement is needed to fix const generics which are BROKEN!!!!!!!!
 
-        [(); { EncoderDecoder::<1024, 16, F>::MODEL_PARAMS }]: Sized,
-        [(); { Layer::<1024, 16, F>::PARAMS }]: Sized,
-        [(); { Layer::<16, 1024, F>::PARAMS }]: Sized,
+        [(); { EncoderDecoder::<1024, 32, F>::MODEL_PARAMS }]: Sized,
+        [(); { Layer::<1024, 32, F>::PARAMS }]: Sized,
+        [(); { Layer::<32, 1024, F>::PARAMS }]: Sized,
         [(); { Neuron::<1024, F>::PARAMS }]: Sized,
-        [(); { Neuron::<16, F>::PARAMS }]: Sized,
+        [(); { Neuron::<32, F>::PARAMS }]: Sized,
 
         [(); { EncoderDecoder::<4096, 64, F>::MODEL_PARAMS }]: Sized,
         [(); { Layer::<4096, 64, F>::PARAMS }]: Sized,
@@ -184,11 +184,11 @@ impl<F: Float> SizedModel<F> {
         [(); { Layer::<1048576, 1024, F>::PARAMS }]: Sized,
         [(); { Layer::<1024, 1048576, F>::PARAMS }]: Sized,
         [(); { Neuron::<1048576, F>::PARAMS }]: Sized,
-        [(); { Neuron::<1024, F>::PARAMS }]: Sized,
+        [(); { Neuron::<1024, F>::PARAMS }]: Sized
     {
         // policy.window() will zero-allocate new params gradients if BackpropagationSnapshot is too small.
         match self {
-            Self::Tiny(model)   => policy.window::<{ EncoderDecoder::<1024,    16,   F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy)),
+            Self::Tiny(model)   => policy.window::<{ EncoderDecoder::<1024,    32,   F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy)),
             Self::Small(model)  => policy.window::<{ EncoderDecoder::<4096,    64,   F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy)),
             Self::Medium(model) => policy.window::<{ EncoderDecoder::<16384,   128,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<8>(tokens, &mut policy)),
             Self::Large(model)  => policy.window::<{ EncoderDecoder::<65536,   256,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<8>(tokens, &mut policy)),
@@ -210,9 +210,9 @@ impl<F: Float> SizedModel<F> {
     }
 }
 
-impl<F: Float> From<GenericWordEmbeddingsModel<1024, 16, F>> for SizedModel<F> {
+impl<F: Float> From<GenericWordEmbeddingsModel<1024, 32, F>> for SizedModel<F> {
     #[inline]
-    fn from(model: GenericWordEmbeddingsModel<1024, 16, F>) -> Self {
+    fn from(model: GenericWordEmbeddingsModel<1024, 32, F>) -> Self {
         Self::Tiny(model)
     }
 }

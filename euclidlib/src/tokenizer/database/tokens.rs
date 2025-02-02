@@ -209,6 +209,36 @@ impl Database {
         Ok(())
     }
 
+    #[allow(unused_braces)]
+    /// Save given dynamically sized word embeddings model into the database.
+    pub fn save_dynamic_model<F: Float>(&self, model: &WordEmbeddingsModel<F>) -> anyhow::Result<()>
+    where
+        // This incredible where statement is needed to fix const generics which are BROKEN!!!!!!!!
+
+        [(); { 1024    + 1 } * F::BYTES]: Sized,
+        [(); { 4096    + 1 } * F::BYTES]: Sized,
+        [(); { 16384   + 1 } * F::BYTES]: Sized,
+        [(); { 65536   + 1 } * F::BYTES]: Sized,
+        [(); { 262144  + 1 } * F::BYTES]: Sized,
+        [(); { 1048576 + 1 } * F::BYTES]: Sized,
+
+        [(); { 32   + 1 } * F::BYTES]: Sized,
+        [(); { 64   + 1 } * F::BYTES]: Sized,
+        [(); { 128  + 1 } * F::BYTES]: Sized,
+        [(); { 256  + 1 } * F::BYTES]: Sized,
+        [(); { 512  + 1 } * F::BYTES]: Sized,
+        [(); { 1024 + 1 } * F::BYTES]: Sized
+    {
+        match model {
+            WordEmbeddingsModel::Tiny(model)   => self.save_model::<1024,    32,   F>(model),
+            WordEmbeddingsModel::Small(model)  => self.save_model::<4096,    64,   F>(model),
+            WordEmbeddingsModel::Medium(model) => self.save_model::<16384,   128,  F>(model),
+            WordEmbeddingsModel::Large(model)  => self.save_model::<65536,   256,  F>(model),
+            WordEmbeddingsModel::Huge(model)   => self.save_model::<262144,  512,  F>(model),
+            WordEmbeddingsModel::Giant(model)  => self.save_model::<1048576, 1024, F>(model)
+        }
+    }
+
     /// Return input tokens number and embeddings size
     /// of the stored model.
     ///
@@ -327,6 +357,44 @@ impl Database {
                 Layer::from_neurons(decoder_layer)
             )
         }))
+    }
+
+    /// Try to load dynamically sized model from the database.
+    /// This method expects one of standard supported generic models.
+    ///
+    /// Guaranteed to return `Ok(None)` if the model is not saved.
+    pub fn load_dynamic_model<F: Float>(&self) -> anyhow::Result<Option<WordEmbeddingsModel<F>>>
+    where
+        // This incredible where statement is needed to fix const generics which are BROKEN!!!!!!!!
+
+        [(); { 1024    + 1 } * F::BYTES]: Sized,
+        [(); { 4096    + 1 } * F::BYTES]: Sized,
+        [(); { 16384   + 1 } * F::BYTES]: Sized,
+        [(); { 65536   + 1 } * F::BYTES]: Sized,
+        [(); { 262144  + 1 } * F::BYTES]: Sized,
+        [(); { 1048576 + 1 } * F::BYTES]: Sized,
+
+        [(); { 32   + 1 } * F::BYTES]: Sized,
+        [(); { 64   + 1 } * F::BYTES]: Sized,
+        [(); { 128  + 1 } * F::BYTES]: Sized,
+        [(); { 256  + 1 } * F::BYTES]: Sized,
+        [(); { 512  + 1 } * F::BYTES]: Sized,
+        [(); { 1024 + 1 } * F::BYTES]: Sized
+    {
+        let Some((inputs, embedding)) = self.saved_model_params()? else {
+            return Ok(None);
+        };
+
+        match (inputs, embedding) {
+            (1024,    16)   => Ok(self.load_model::<1024,    32,   F>()?.map(WordEmbeddingsModel::from)),
+            (4096,    64)   => Ok(self.load_model::<4096,    64,   F>()?.map(WordEmbeddingsModel::from)),
+            (16384,   128)  => Ok(self.load_model::<16384,   128,  F>()?.map(WordEmbeddingsModel::from)),
+            (65536,   256)  => Ok(self.load_model::<65536,   256,  F>()?.map(WordEmbeddingsModel::from)),
+            (262144,  512)  => Ok(self.load_model::<262144,  512,  F>()?.map(WordEmbeddingsModel::from)),
+            (1048576, 1024) => Ok(self.load_model::<1048576, 1024, F>()?.map(WordEmbeddingsModel::from)),
+
+            _ => anyhow::bail!("Trying to load non-standard model with {inputs} inputs and {embedding} embedding size")
+        }
     }
 }
 
