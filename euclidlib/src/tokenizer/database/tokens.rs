@@ -346,7 +346,9 @@ impl Database {
             .query_map([], |row| {
                 encoder_neuron.copy_from_slice(&row.get::<_, Vec<u8>>(0)?);
 
-                let neuron = Neuron::<TOKENS_NUM, F>::from_bytes(&encoder_neuron);
+                let neuron = Neuron::<TOKENS_NUM, F>::from_bytes(&encoder_neuron)
+                    .with_activation_function(linear, linear_derivative)
+                    .with_loss_function(quadratic_error, quadratic_error_derivative);
 
                 Ok(neuron)
             })?
@@ -365,7 +367,9 @@ impl Database {
             .query_map([], |row| {
                 decoder_neuron.copy_from_slice(&row.get::<_, Vec<u8>>(0)?);
 
-                let neuron = Neuron::<EMBEDDING_SIZE, F>::from_bytes(&decoder_neuron);
+                let neuron = Neuron::<EMBEDDING_SIZE, F>::from_bytes(&decoder_neuron)
+                    .with_activation_function(linear, linear_derivative)
+                    .with_loss_function(quadratic_error, quadratic_error_derivative);
 
                 Ok(neuron)
             })?
