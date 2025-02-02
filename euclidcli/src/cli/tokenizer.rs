@@ -367,7 +367,7 @@ impl TokenizerCLI {
 
                     let mean_loss = *mean_loss.lock().unwrap() / trained_documents as f32;
 
-                    if epoch % save_interval == 0 || mean_loss < stop_after_loss {
+                    if (save_interval > 0 && epoch % save_interval == 0) || mean_loss < stop_after_loss {
                         let model = model.lock().unwrap();
 
                         println!("  ⏳ Saving updated model to the database...");
