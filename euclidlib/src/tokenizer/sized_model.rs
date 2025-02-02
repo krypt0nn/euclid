@@ -24,7 +24,7 @@ pub enum SizedModel<F: Float> {
     // ! in other parts of the code as well and you will have to find and
     // ! update them there too.
 
-    /// 1K tokens, 32 dimensions, 4 context tokens, 34K parameters.
+    /// 1K tokens, 32 dimensions, 4 context tokens, 66K parameters.
     Tiny(GenericWordEmbeddingsModel<1024, 32, F>),
 
     /// 4K tokens, 64 dimensions, 4 context tokens, 500K parameters.
@@ -44,6 +44,42 @@ pub enum SizedModel<F: Float> {
 }
 
 impl<F: Float> SizedModel<F> {
+    #[inline]
+    /// Create new tiny model with random parameters.
+    pub fn random_tiny() -> Self {
+        Self::Tiny(GenericWordEmbeddingsModel::<1024, 32, F>::random())
+    }
+
+    #[inline]
+    /// Create new small model with random parameters.
+    pub fn random_small() -> Self {
+        Self::Small(GenericWordEmbeddingsModel::<4096, 64, F>::random())
+    }
+
+    #[inline]
+    /// Create new medium model with random parameters.
+    pub fn random_medium() -> Self {
+        Self::Medium(GenericWordEmbeddingsModel::<16384, 128, F>::random())
+    }
+
+    #[inline]
+    /// Create new large model with random parameters.
+    pub fn random_large() -> Self {
+        Self::Large(GenericWordEmbeddingsModel::<65536, 256, F>::random())
+    }
+
+    #[inline]
+    /// Create new huge model with random parameters.
+    pub fn random_huge() -> Self {
+        Self::Huge(GenericWordEmbeddingsModel::<262144, 512, F>::random())
+    }
+
+    #[inline]
+    /// Create new giant model with random parameters.
+    pub fn random_giant() -> Self {
+        Self::Giant(GenericWordEmbeddingsModel::<1048576, 1024, F>::random())
+    }
+
     /// Convert given generic word embeddings model into dynamically sized.
     ///
     /// This function will resize provided generic model to the closest
@@ -95,6 +131,19 @@ impl<F: Float> SizedModel<F> {
             Self::Large(model)  => Self::from_generic(model.resize::<NEW_TOKENS_NUM, NEW_EMBEDDING_SIZE>()),
             Self::Huge(model)   => Self::from_generic(model.resize::<NEW_TOKENS_NUM, NEW_EMBEDDING_SIZE>()),
             Self::Giant(model)  => Self::from_generic(model.resize::<NEW_TOKENS_NUM, NEW_EMBEDDING_SIZE>())
+        }
+    }
+
+    /// Upscale the model to the higher resolution.
+    pub fn upscale(&self) -> Option<Self> {
+        match self {
+            Self::Tiny(model)   => Self::from_generic(model.resize::<4096,    64>()),
+            Self::Small(model)  => Self::from_generic(model.resize::<16384,   128>()),
+            Self::Medium(model) => Self::from_generic(model.resize::<65536,   256>()),
+            Self::Large(model)  => Self::from_generic(model.resize::<262144,  512>()),
+            Self::Huge(model)   => Self::from_generic(model.resize::<1048576, 1024>()),
+
+            Self::Giant(_) => None
         }
     }
 

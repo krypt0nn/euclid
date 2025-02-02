@@ -6,52 +6,34 @@ use colorful::Colorful;
 use euclidlib::prelude::*;
 
 #[derive(Parser)]
-pub enum DatasetCli {
+pub enum DatasetCLI {
     /// Create new dataset.
-    Create {
-        #[arg(long, short)]
-        /// Path to the database file.
-        path: PathBuf,
-
-        #[arg(long, default_value_t = -4096)]
-        /// SQLite database cache size.
-        ///
-        /// Positive value sets cache size in bytes, negative - in sqlite pages.
-        cache_size: i64
-    },
+    Create,
 
     /// Insert document into the dataset.
     Insert {
-        #[arg(long)]
-        /// Path to the database file.
-        database: PathBuf,
-
         #[arg(long)]
         /// Path to the document file.
         document: PathBuf,
 
         #[arg(long, default_value_t = String::new())]
         /// Name of the document.
-        name: String,
-
-        #[arg(long, default_value_t = -4096)]
-        /// SQLite database cache size.
-        ///
-        /// Positive value sets cache size in bytes, negative - in sqlite pages.
-        cache_size: i64
+        name: String
     }
 }
 
-impl DatasetCli {
+impl DatasetCLI {
     #[inline]
-    pub fn execute(self) -> anyhow::Result<()> {
+    pub fn execute(self, path: PathBuf, cache_size: i64) -> anyhow::Result<()> {
         match self {
-            Self::Create { path, cache_size } => {
+            Self::Create => {
+                let path = path.canonicalize().unwrap_or(path);
+
+                println!("⏳ Creating dataset in {path:?}...");
+
                 match DocumentsDatabase::open(&path, cache_size) {
                     Ok(_) => {
-                        let path = path.canonicalize().unwrap_or(path);
-
-                        println!("{}", format!("🚀 Database created in {path:?}").green());
+                        println!("{}", "🚀 Dataset created".green());
                         println!("{} {} command will create new database automatically if needed", "📖 Note:".blue(), "`dataset insert`".yellow());
                     }
 
@@ -59,8 +41,8 @@ impl DatasetCli {
                 }
             }
 
-            Self::Insert { database, document, name, cache_size } => {
-                let database = database.canonicalize().unwrap_or(database);
+            Self::Insert { document, name } => {
+                let database = path.canonicalize().unwrap_or(path);
 
                 println!("⏳ Opening database in {database:?}...");
 

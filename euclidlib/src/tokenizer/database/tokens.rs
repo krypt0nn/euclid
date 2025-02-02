@@ -26,7 +26,7 @@ impl Database {
                 PRIMARY KEY (id)
             );
 
-            CREATE INDEX idx_tokens_value on tokens (value);
+            CREATE INDEX IF NOT EXISTS idx_tokens_value on tokens (value);
 
             CREATE TABLE IF NOT EXISTS embeddings (
                 token_id  INTEGER NOT NULL,
@@ -49,6 +49,9 @@ impl Database {
 
                 PRIMARY KEY (id)
             );
+
+            INSERT OR IGNORE INTO tokens (id, value) VALUES (0, '');
+            INSERT OR IGNORE INTO embeddings (token_id, embedding) VALUES (0, '');
         ")?;
 
         Ok(Self {
@@ -386,7 +389,7 @@ impl Database {
         };
 
         match (inputs, embedding) {
-            (1024,    16)   => Ok(self.load_model::<1024,    32,   F>()?.map(WordEmbeddingsModel::from)),
+            (1024,    32)   => Ok(self.load_model::<1024,    32,   F>()?.map(WordEmbeddingsModel::from)),
             (4096,    64)   => Ok(self.load_model::<4096,    64,   F>()?.map(WordEmbeddingsModel::from)),
             (16384,   128)  => Ok(self.load_model::<16384,   128,  F>()?.map(WordEmbeddingsModel::from)),
             (65536,   256)  => Ok(self.load_model::<65536,   256,  F>()?.map(WordEmbeddingsModel::from)),

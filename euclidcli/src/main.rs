@@ -4,7 +4,7 @@ use colorful::Colorful;
 pub mod cli;
 
 fn main() {
-    if let Err(err) = cli::Cli::parse().execute() {
+    if let Err(err) = cli::CLI::parse().execute() {
         eprintln!("{}", format!("🧯 An error occured: {err}").red());
     }
 
