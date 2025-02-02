@@ -55,7 +55,7 @@ pub enum TokenizerCLI {
         /// If set to 0 then no cyclic schedule will be applied.
         cycle_period: u32,
 
-        #[arg(long, default_value_t = 0.0001)]
+        #[arg(long, default_value_t = 0.00015)]
         /// Target learn rate of the backpropagation.
         ///
         /// It is different from the actual learn rate because we use cyclic
@@ -65,7 +65,7 @@ pub enum TokenizerCLI {
         /// cyclic schedule around the target value.
         learn_rate: f32,
 
-        #[arg(long, default_value_t = 0.5)]
+        #[arg(long, default_value_t = 0.05)]
         /// Stop training when mean loss fall under this value.
         stop_after_loss: f32,
 
@@ -420,10 +420,24 @@ impl TokenizerCLI {
 
                 println!("⏳ Exporting tokens into {csv:?}...");
 
+                let mut has_header = false;
+
                 let result = database.clone().for_each(move |token, word| {
                     if let Some(first_char) = word.chars().next() {
-                        if first_char.is_alphanumeric() {
+                        if first_char.is_alphanumeric() || first_char == '<' {
                             if let Some(embedding) = database.query_embedding::<f32>(token)? {
+                                if !has_header {
+                                    file.write_all(b"\"token\",\"word\"")?;
+
+                                    for i in 1..=embedding.len() {
+                                        file.write_all(format!(",\"embedding{i}\"").as_bytes())?;
+                                    }
+
+                                    file.write_all(b"\n")?;
+
+                                    has_header = true;
+                                }
+
                                 file.write_all(format!("\"{token}\",\"{word}\"").as_bytes())?;
 
                                 for value in embedding {
