@@ -2,5 +2,4 @@
 /Cargo.lock
 /.direnv
 
-/*.txt
-/*.csv
+/*.{txt,csv,db}
