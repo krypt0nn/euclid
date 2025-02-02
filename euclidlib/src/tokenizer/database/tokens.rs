@@ -59,6 +59,30 @@ impl Database {
         })
     }
 
+    /// Iterate over all tokens stored in the database.
+    ///
+    /// Return amount of read tokens.
+    pub fn for_each(&self, mut callback: impl FnMut(i64, String) -> anyhow::Result<()>) -> anyhow::Result<u64> {
+        let mut tokens = 0;
+
+        self.connection.prepare_cached("SELECT id, value FROM tokens ORDER BY id ASC")?
+            .query_map([], move |row| {
+                let id = row.get::<_, i64>(0)?;
+                let token = row.get::<_, String>(1)?;
+
+                Ok((id, token))
+            })?
+            .try_for_each(|row| {
+                let (id, token) = row?;
+
+                tokens += 1;
+
+                callback(id, token)
+            })?;
+
+        Ok(tokens)
+    }
+
     /// Query token from the database.
     ///
     /// Guaranteed to return `Ok(None)` if token is not stored.

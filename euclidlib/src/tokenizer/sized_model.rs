@@ -22,8 +22,8 @@ fn scale_slice<const LEN: usize, F: Float>(slice: &[F]) -> Box<[F; LEN]> {
 pub struct SizedModelParams {
     pub input_tokens: usize,
     pub embedding_dimensions: usize,
-    pub parameters: usize,
-    pub embedding_context_radius: usize
+    pub embedding_context_radius: usize,
+    pub parameters: usize
 }
 
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -171,43 +171,43 @@ impl<F: Float> SizedModel<F> {
             Self::Tiny(_) => SizedModelParams {
                 input_tokens: 1024,
                 embedding_dimensions: 32,
-                parameters: GenericWordEmbeddingsModel::<1024, 32, F>::PARAMS,
-                embedding_context_radius: 4
+                embedding_context_radius: 4,
+                parameters: GenericWordEmbeddingsModel::<1024, 32, F>::PARAMS
             },
 
             Self::Small(_) => SizedModelParams {
                 input_tokens: 4096,
                 embedding_dimensions: 64,
-                parameters: GenericWordEmbeddingsModel::<4096, 64, F>::PARAMS,
-                embedding_context_radius: 4
+                embedding_context_radius: 4,
+                parameters: GenericWordEmbeddingsModel::<4096, 64, F>::PARAMS
             },
 
             Self::Medium(_) => SizedModelParams {
                 input_tokens: 16384,
                 embedding_dimensions: 128,
-                parameters: GenericWordEmbeddingsModel::<16384, 128, F>::PARAMS,
-                embedding_context_radius: 8
+                embedding_context_radius: 8,
+                parameters: GenericWordEmbeddingsModel::<16384, 128, F>::PARAMS
             },
 
             Self::Large(_) => SizedModelParams {
                 input_tokens: 65536,
                 embedding_dimensions: 256,
-                parameters: GenericWordEmbeddingsModel::<65536, 256, F>::PARAMS,
-                embedding_context_radius: 8
+                embedding_context_radius: 8,
+                parameters: GenericWordEmbeddingsModel::<65536, 256, F>::PARAMS
             },
 
             Self::Huge(_) => SizedModelParams {
                 input_tokens: 262144,
                 embedding_dimensions: 512,
-                parameters: GenericWordEmbeddingsModel::<262144, 512, F>::PARAMS,
-                embedding_context_radius: 12
+                embedding_context_radius: 12,
+                parameters: GenericWordEmbeddingsModel::<262144, 512, F>::PARAMS
             },
 
             Self::Giant(_) => SizedModelParams {
                 input_tokens: 1048576,
                 embedding_dimensions: 1024,
-                parameters: GenericWordEmbeddingsModel::<1048576, 1024, F>::PARAMS,
-                embedding_context_radius: 12
+                embedding_context_radius: 12,
+                parameters: GenericWordEmbeddingsModel::<1048576, 1024, F>::PARAMS
             }
         }
     }
