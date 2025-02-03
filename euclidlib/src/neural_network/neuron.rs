@@ -412,61 +412,69 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     /// Return `Err` on memory allocation failure.
     pub fn backward(
         &mut self,
-        input: impl IntoHeapArray<F, INPUT_SIZE>,
-        expected_output: F,
+        inputs: impl IntoHeapArray<F, INPUT_SIZE>,
+        output: F,
         policy: &mut BackpropagationSnapshot<'_, { Self::PARAMS }, F>
     ) -> Box<[F; INPUT_SIZE]> {
-        // Get heap-allocated input values.
-        let input = unsafe {
-            input.into_heap_array()
-        };
+        unsafe {
+            // Allocate all the memory buffers.
+            let inputs = inputs.into_heap_array();
 
+            let mut input_values = alloc_fixed_heap_array_with::<F, { Self::PARAMS }>(F::ZERO)
+                .expect("Failed to allocate space for neuron backpropagation values");
+
+            let mut forward_gradients = alloc_fixed_heap_array_with::<F, { Self::PARAMS }>(F::ZERO)
+                .expect("Failed to allocate space for neuron backpropagation forward gradients");
+
+            let mut backward_gradients = alloc_fixed_heap_array_with::<F, INPUT_SIZE>(F::ZERO)
+                .expect("Failed to allocate space for neuron backpropagation backward gradients");
+
+            // Perform backward propagation using low-level API.
+            self.backward_in_place(&inputs, output, policy, &mut input_values, &mut forward_gradients, &mut backward_gradients);
+
+            backward_gradients
+        }
+    }
+
+    #[allow(unused_braces)]
+    /// Low-level `Neuron::backward` method variant which doesn't allocate
+    /// additional memory and uses only provided containers.
+    pub fn backward_in_place(
+        &mut self,
+        inputs: &[F; INPUT_SIZE],
+        output: F,
+        policy: &mut BackpropagationSnapshot<'_, { Self::PARAMS }, F>,
+        input_values_buf: &mut [F; { Self::PARAMS }],
+        forward_gradients_buf: &mut [F; { Self::PARAMS }],
+        backward_gradients_buf: &mut [F; INPUT_SIZE]
+    ) {
         // Calculate argument of the activation function.
-        let argument = self.make_weighted_input(&input);
+        let argument = self.make_weighted_input(&inputs);
 
         // Calculate activated value returned by the neuron.
         let actual_output = (self.activation_function)(argument);
 
         // Calculate gradient of the argument.
-        let gradient = (self.loss_function_derivative)(actual_output, expected_output) *
+        let gradient = (self.loss_function_derivative)(actual_output, output) *
             (self.activation_function_derivative)(argument);
 
-        // Prepare map of the backward propagation gradients for current
-        // and previous neurons.
-        let mut input_values = unsafe {
-            alloc_fixed_heap_array_with::<F, { Self::PARAMS }>(F::ZERO)
-                .expect("Failed to allocate space for neuron backpropagation values")
-        };
-
-        let mut forward_gradients = unsafe {
-            alloc_fixed_heap_array_with::<F, { Self::PARAMS }>(F::ZERO)
-                .expect("Failed to allocate space for neuron backpropagation forward gradients")
-        };
-
-        let mut backward_gradients = unsafe {
-            alloc_fixed_heap_array_with::<F, INPUT_SIZE>(F::ZERO)
-                .expect("Failed to allocate space for neuron backpropagation backward gradients")
-        };
-
         // Set gradients and input values.
-        input_values[0] = self.bias;
-        forward_gradients[0] = gradient;
+        input_values_buf[0] = self.bias;
+        forward_gradients_buf[0] = gradient;
 
-        input_values[1..].copy_from_slice(self.weights.as_slice());
+        input_values_buf[1..].copy_from_slice(self.weights.as_slice());
 
         for i in 0..INPUT_SIZE {
-            forward_gradients[i + 1] = gradient * input[i];
-            backward_gradients[i]    = gradient * self.weights[i];
+            forward_gradients_buf[i + 1] = gradient * inputs[i];
+            backward_gradients_buf[i]    = gradient * self.weights[i];
         }
 
         // Backpropagate weights and bias using calculated gradients.
-        policy.backpropagate(&mut input_values, &forward_gradients);
+        policy.backpropagate(input_values_buf, &forward_gradients_buf);
 
         // Update weights and bias from the output values.
-        self.bias = input_values[0];
-        self.weights.copy_from_slice(&input_values[1..]);
-
-        backward_gradients
+        self.bias = input_values_buf[0];
+        self.weights.copy_from_slice(&input_values_buf[1..]);
     }
 
     /// Update weights and bias of the neuron similarly to the
@@ -480,58 +488,66 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
     /// Returns `INPUT_SIZE` gradients.
     pub fn backward_propagated(
         &mut self,
-        input: impl IntoHeapArray<F, INPUT_SIZE>,
+        inputs: impl IntoHeapArray<F, INPUT_SIZE>,
         output_gradient: F,
         policy: &mut BackpropagationSnapshot<'_, { Self::PARAMS }, F>
     ) -> Box<[F; INPUT_SIZE]> {
-        // Get heap-allocated input values.
-        let input = unsafe {
-            input.into_heap_array()
-        };
+        unsafe {
+            // Allocate all the memory buffers.
+            let inputs = inputs.into_heap_array();
 
+            let mut input_values = alloc_fixed_heap_array_with::<F, { Self::PARAMS }>(F::ZERO)
+                .expect("Failed to allocate space for neuron backpropagation values");
+
+            let mut forward_gradients = alloc_fixed_heap_array_with::<F, { Self::PARAMS }>(F::ZERO)
+                .expect("Failed to allocate space for neuron backpropagation forward gradients");
+
+            let mut backward_gradients = alloc_fixed_heap_array_with::<F, INPUT_SIZE>(F::ZERO)
+                .expect("Failed to allocate space for neuron backpropagation backward gradients");
+
+            // Perform backward propagation using low-level API.
+            self.backward_propagated_in_place(&inputs, output_gradient, policy, &mut input_values, &mut forward_gradients, &mut backward_gradients);
+
+            backward_gradients
+        }
+    }
+
+    #[allow(unused_braces)]
+    /// Low-level `Neuron::backward_propagated` method variant which
+    /// doesn't allocate additional memory and uses only provided containers.
+    pub fn backward_propagated_in_place(
+        &mut self,
+        inputs: &[F; INPUT_SIZE],
+        output_gradient: F,
+        policy: &mut BackpropagationSnapshot<'_, { Self::PARAMS }, F>,
+        input_values_buf: &mut [F; { Self::PARAMS }],
+        forward_gradients_buf: &mut [F; { Self::PARAMS }],
+        backward_gradients_buf: &mut [F; INPUT_SIZE]
+    ) {
         // Calculate argument of the activation function.
-        let argument = self.make_weighted_input(&input);
+        let argument = self.make_weighted_input(&inputs);
 
         // Calculate gradient of the current neuron using gradient
         // of the connected forward neurons.
         let gradient = output_gradient * (self.activation_function_derivative)(argument);
 
-        // Prepare map of the backward propagation gradients for current
-        // and previous neurons.
-        let mut input_values = unsafe {
-            alloc_fixed_heap_array_with::<F, { Self::PARAMS }>(F::ZERO)
-                .expect("Failed to allocate space for neuron backpropagation values")
-        };
-
-        let mut forward_gradients = unsafe {
-            alloc_fixed_heap_array_with::<F, { Self::PARAMS }>(F::ZERO)
-                .expect("Failed to allocate space for neuron backpropagation forward gradients")
-        };
-
-        let mut backward_gradients = unsafe {
-            alloc_fixed_heap_array_with::<F, INPUT_SIZE>(F::ZERO)
-                .expect("Failed to allocate space for neuron backpropagation backward gradients")
-        };
-
         // Set gradients and input values.
-        input_values[0] = self.bias;
-        forward_gradients[0] = gradient;
+        input_values_buf[0] = self.bias;
+        forward_gradients_buf[0] = gradient;
 
-        input_values[1..].copy_from_slice(self.weights.as_slice());
+        input_values_buf[1..].copy_from_slice(self.weights.as_slice());
 
         for i in 0..INPUT_SIZE {
-            forward_gradients[i + 1] = gradient * input[i];
-            backward_gradients[i]    = gradient * self.weights[i];
+            forward_gradients_buf[i + 1] = gradient * inputs[i];
+            backward_gradients_buf[i]    = gradient * self.weights[i];
         }
 
         // Backpropagate weights and bias using calculated gradients.
-        policy.backpropagate(&mut input_values, &forward_gradients);
+        policy.backpropagate(input_values_buf, &forward_gradients_buf);
 
         // Update weights and bias from the output values.
-        self.bias = input_values[0];
-        self.weights.copy_from_slice(&input_values[1..]);
-
-        backward_gradients
+        self.bias = input_values_buf[0];
+        self.weights.copy_from_slice(&input_values_buf[1..]);
     }
 }
 
