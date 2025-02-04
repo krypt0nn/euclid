@@ -49,17 +49,18 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> EncoderDecoder
 
     #[inline]
     /// Encode given input.
-    pub fn encode(&self, input: impl IntoHeapArray<F, INPUT_SIZE>) -> Box<[F; OUTPUT_SIZE]> {
-        self.encoder.forward(input)
+    pub fn encode(&self, input: impl IntoHeapArray<F, INPUT_SIZE>, device: &impl Device) -> Box<[F; OUTPUT_SIZE]> {
+        self.encoder.forward(input, device)
     }
 
     #[inline]
     /// Decode given output.
-    pub fn decode(&self, output: impl IntoHeapArray<F, OUTPUT_SIZE>) -> Box<[F; INPUT_SIZE]> {
-        self.decoder.forward(output)
+    pub fn decode(&self, output: impl IntoHeapArray<F, OUTPUT_SIZE>, device: &impl Device) -> Box<[F; INPUT_SIZE]> {
+        self.decoder.forward(output, device)
     }
 
     #[allow(unused_braces)]
+    #[inline]
     /// Train the model to perform `encode(input) = output` conversion.
     ///
     /// Returns gradients from the encoder layer.
@@ -67,16 +68,18 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> EncoderDecoder
         &mut self,
         input: impl IntoHeapArray<F, INPUT_SIZE>,
         output: impl IntoHeapArray<F, OUTPUT_SIZE>,
-        policy: &mut BackpropagationSnapshot<{ Layer::<INPUT_SIZE, OUTPUT_SIZE, F>::PARAMS }, F>
+        policy: &mut BackpropagationSnapshot<{ Layer::<INPUT_SIZE, OUTPUT_SIZE, F>::PARAMS }, F>,
+        device: &mut impl Device
     ) -> Box<[F; INPUT_SIZE]>
     where
         [(); { Layer::<INPUT_SIZE, OUTPUT_SIZE, F>::PARAMS }]: Sized,
         [(); { Neuron::<INPUT_SIZE, F>::PARAMS }]: Sized
     {
-        self.encoder.backward(input, output, policy)
+        self.encoder.backward(input, output, policy, device)
     }
 
     #[allow(unused_braces)]
+    #[inline]
     /// Train the model to perform `decode(output) = input` conversion.
     ///
     /// Returns gradients from the decoder layer.
@@ -84,13 +87,14 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> EncoderDecoder
         &mut self,
         output: impl IntoHeapArray<F, OUTPUT_SIZE>,
         input: impl IntoHeapArray<F, INPUT_SIZE>,
-        policy: &mut BackpropagationSnapshot<{ Layer::<OUTPUT_SIZE, INPUT_SIZE, F>::PARAMS }, F>
+        policy: &mut BackpropagationSnapshot<{ Layer::<OUTPUT_SIZE, INPUT_SIZE, F>::PARAMS }, F>,
+        device: &mut impl Device
     ) -> Box<[F; OUTPUT_SIZE]>
     where
         [(); { Layer::<OUTPUT_SIZE, INPUT_SIZE, F>::PARAMS }]: Sized,
         [(); { Neuron::<OUTPUT_SIZE, F>::PARAMS }]: Sized
     {
-        self.decoder.backward(output, input, policy)
+        self.decoder.backward(output, input, policy, device)
     }
 
     #[allow(unused_braces)]
@@ -98,7 +102,8 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> EncoderDecoder
     pub fn train(
         &mut self,
         input: impl IntoHeapArray<F, INPUT_SIZE>,
-        policy: &mut BackpropagationSnapshot<{ Self::MODEL_PARAMS }, F>
+        policy: &mut BackpropagationSnapshot<{ Self::MODEL_PARAMS }, F>,
+        device: &mut impl Device
     ) where
         [(); { Layer::<INPUT_SIZE, OUTPUT_SIZE, F>::PARAMS }]: Sized,
         [(); { Layer::<OUTPUT_SIZE, INPUT_SIZE, F>::PARAMS }]: Sized,
@@ -107,14 +112,14 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> EncoderDecoder
     {
         let input = unsafe { input.into_heap_array() };
 
-        let encoded = self.encoder.forward(&input);
+        let encoded = self.encoder.forward(&input, device);
 
         let gradients = policy.window::<{ Layer::<OUTPUT_SIZE, INPUT_SIZE, F>::PARAMS }, _>(0, |mut policy| {
-            self.decoder.backward(&encoded, &input, &mut policy)
+            self.decoder.backward(&encoded, &input, &mut policy, device)
         });
 
-        policy.window(Layer::<OUTPUT_SIZE, INPUT_SIZE, F>::PARAMS, |mut policy| {
-            self.encoder.backward_propagated(&input, &gradients, &mut policy);
+        policy.window(Layer::<OUTPUT_SIZE, INPUT_SIZE, F>::PARAMS, |mut policy: BackpropagationSnapshot<{ Layer::<INPUT_SIZE, OUTPUT_SIZE, F>::PARAMS }, F>| {
+            self.encoder.backward_propagated(&input, &gradients, &mut policy, device);
         });
     }
 
@@ -140,10 +145,10 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> EncoderDecoder
 
     #[inline]
     /// Calculate total encoder-decoder loss.
-    pub fn loss(&self, input: impl IntoHeapArray<F, INPUT_SIZE>) -> F {
+    pub fn loss(&self, input: impl IntoHeapArray<F, INPUT_SIZE>, device: &impl Device) -> F {
         let input = unsafe { input.into_heap_array() };
 
-        let actual = self.decode(self.encode(&input));
+        let actual = self.decode(self.encode(&input, device), device);
 
         self.decoder_loss(input, actual)
     }
@@ -156,7 +161,10 @@ fn test_encoder_decoder() {
     let mut model = EncoderDecoder::<2, 2, f64>::random();
 
     // Prepare backpropagation policy.
-    let mut backpropagation = Backpropagation::default();
+    let mut backpropagation = Backpropagation::<{ EncoderDecoder::<2, 2, f64>::MODEL_PARAMS }, f64>::default();
+
+    // Prepare CPU device.
+    let mut device = CPUDevice::default();
 
     // Train the model on given samples.
     let examples = [
@@ -171,11 +179,11 @@ fn test_encoder_decoder() {
     for _ in 0..1000 {
         for example in examples {
             backpropagation.timestep(|mut policy| {
-                model.train(example, &mut policy);
+                model.train(example, &mut policy, &mut device);
             })
         }
     }
 
     // Validate the model.
-    assert!(model.loss([0.71, 0.13]) < 0.3);
+    assert!(model.loss([0.71, 0.13], &device) < 0.3);
 }

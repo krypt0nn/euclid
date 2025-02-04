@@ -336,7 +336,7 @@ impl<const SIZE: usize, F: Float> BackpropagationSnapshot<'_, SIZE, F> {
     /// Backpropagate given values using calculated gradients.
     ///
     /// It's expected that values and gradients have `SIZE` values.
-    pub fn backpropagate(&mut self, values: &mut Box<[F; SIZE]>, gradients: &[F; SIZE]) {
+    pub fn backpropagate(&mut self, values: &mut [F; SIZE], gradients: &[F; SIZE]) {
         // Learn rate warmup.
         let mut learn_rate = if self.0.timestep < self.0.warmup_duration {
             self.0.learn_rate * F::from_float(self.0.timestep as f32 / self.0.warmup_duration as f32)

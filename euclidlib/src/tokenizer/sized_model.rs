@@ -213,26 +213,26 @@ impl<F: Float> SizedModel<F> {
     }
 
     /// Encode given token to the embedding vector.
-    pub fn encode(&self, token: usize) -> Vec<F> {
+    pub fn encode(&self, token: usize, device: &impl Device) -> Vec<F> {
         match self {
-            Self::Tiny(model)   => model.encode(token).to_vec(),
-            Self::Small(model)  => model.encode(token).to_vec(),
-            Self::Medium(model) => model.encode(token).to_vec(),
-            Self::Large(model)  => model.encode(token).to_vec(),
-            Self::Huge(model)   => model.encode(token).to_vec(),
-            Self::Giant(model)  => model.encode(token).to_vec()
+            Self::Tiny(model)   => model.encode(token, device).to_vec(),
+            Self::Small(model)  => model.encode(token, device).to_vec(),
+            Self::Medium(model) => model.encode(token, device).to_vec(),
+            Self::Large(model)  => model.encode(token, device).to_vec(),
+            Self::Huge(model)   => model.encode(token, device).to_vec(),
+            Self::Giant(model)  => model.encode(token, device).to_vec()
         }
     }
 
     /// Decode given embedding vector to the token.
-    pub fn decode(&self, embedding: &[F]) -> usize {
+    pub fn decode(&self, embedding: &[F], device: &impl Device) -> usize {
         match self {
-            Self::Tiny(model)   => model.decode(scale_slice(embedding)),
-            Self::Small(model)  => model.decode(scale_slice(embedding)),
-            Self::Medium(model) => model.decode(scale_slice(embedding)),
-            Self::Large(model)  => model.decode(scale_slice(embedding)),
-            Self::Huge(model)   => model.decode(scale_slice(embedding)),
-            Self::Giant(model)  => model.decode(scale_slice(embedding))
+            Self::Tiny(model)   => model.decode(scale_slice(embedding), device),
+            Self::Small(model)  => model.decode(scale_slice(embedding), device),
+            Self::Medium(model) => model.decode(scale_slice(embedding), device),
+            Self::Large(model)  => model.decode(scale_slice(embedding), device),
+            Self::Huge(model)   => model.decode(scale_slice(embedding), device),
+            Self::Giant(model)  => model.decode(scale_slice(embedding), device)
         }
     }
 
@@ -246,7 +246,8 @@ impl<F: Float> SizedModel<F> {
     pub fn train<const PARAMS: usize>(
         &mut self,
         tokens: &[usize],
-        policy: &mut BackpropagationSnapshot<'_, PARAMS, F>
+        policy: &mut BackpropagationSnapshot<PARAMS, F>,
+        device: &mut impl Device
     )
     where
         // This incredible where statement is needed to fix const generics which are BROKEN!!!!!!!!
@@ -289,30 +290,30 @@ impl<F: Float> SizedModel<F> {
     {
         // policy.window() will zero-allocate new params gradients if BackpropagationSnapshot is too small.
         match self {
-            Self::Tiny(model)   => policy.window::<{ EncoderDecoder::<1024,    32,   F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy)),
-            Self::Small(model)  => policy.window::<{ EncoderDecoder::<4096,    64,   F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy)),
-            Self::Medium(model) => policy.window::<{ EncoderDecoder::<16384,   128,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<8>(tokens, &mut policy)),
-            Self::Large(model)  => policy.window::<{ EncoderDecoder::<65536,   256,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<8>(tokens, &mut policy)),
-            Self::Huge(model)   => policy.window::<{ EncoderDecoder::<262144,  512,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<12>(tokens, &mut policy)),
-            Self::Giant(model)  => policy.window::<{ EncoderDecoder::<1048576, 1024, F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<12>(tokens, &mut policy))
+            Self::Tiny(model)   => policy.window::<{ EncoderDecoder::<1024,    32,   F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy, device)),
+            Self::Small(model)  => policy.window::<{ EncoderDecoder::<4096,    64,   F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy, device)),
+            Self::Medium(model) => policy.window::<{ EncoderDecoder::<16384,   128,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<8>(tokens, &mut policy, device)),
+            Self::Large(model)  => policy.window::<{ EncoderDecoder::<65536,   256,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<8>(tokens, &mut policy, device)),
+            Self::Huge(model)   => policy.window::<{ EncoderDecoder::<262144,  512,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<12>(tokens, &mut policy, device)),
+            Self::Giant(model)  => policy.window::<{ EncoderDecoder::<1048576, 1024, F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<12>(tokens, &mut policy, device))
         }
     }
 
     /// Calculate loss between expected token and an actual prediction of the model.
-    pub fn loss(&self, input_tokens: &[usize], expected_output: usize) -> F {
+    pub fn loss(&self, input_tokens: &[usize], expected_output: usize, device: &impl Device) -> F {
         match self {
-            Self::Tiny(model)   => model.loss(input_tokens, expected_output),
-            Self::Small(model)  => model.loss(input_tokens, expected_output),
-            Self::Medium(model) => model.loss(input_tokens, expected_output),
-            Self::Large(model)  => model.loss(input_tokens, expected_output),
-            Self::Huge(model)   => model.loss(input_tokens, expected_output),
-            Self::Giant(model)  => model.loss(input_tokens, expected_output)
+            Self::Tiny(model)   => model.loss(input_tokens, expected_output, device),
+            Self::Small(model)  => model.loss(input_tokens, expected_output, device),
+            Self::Medium(model) => model.loss(input_tokens, expected_output, device),
+            Self::Large(model)  => model.loss(input_tokens, expected_output, device),
+            Self::Huge(model)   => model.loss(input_tokens, expected_output, device),
+            Self::Giant(model)  => model.loss(input_tokens, expected_output, device)
         }
     }
 
     /// Calculate loss statistics on the given tokens sequence.
-    pub fn total_loss(&self, tokens: &[usize]) -> SizedModelLoss<F> {
-        fn window_over<F: Float>(tokens: &[usize], radius: usize, model: &SizedModel<F>) -> SizedModelLoss<F> {
+    pub fn total_loss(&self, tokens: &[usize], device: &impl Device) -> SizedModelLoss<F> {
+        fn window_over<F: Float>(tokens: &[usize], radius: usize, model: &SizedModel<F>, device: &impl Device) -> SizedModelLoss<F> {
             let mut window = vec![0; radius * 2];
 
             let n = tokens.len();
@@ -324,7 +325,7 @@ impl<F: Float> SizedModel<F> {
                 window[..radius].copy_from_slice(&tokens[i - radius..i]);
                 window[radius..].copy_from_slice(&tokens[i + 1..i + 1 + radius]);
 
-                let loss = model.loss(&window, tokens[i]);
+                let loss = model.loss(&window, tokens[i], device);
 
                 if k == 1 {
                     loss_stats.min_loss = loss;
@@ -347,7 +348,7 @@ impl<F: Float> SizedModel<F> {
 
         let params = self.params();
 
-        window_over(tokens, params.embedding_context_radius, self)
+        window_over(tokens, params.embedding_context_radius, self, device)
     }
 }
 

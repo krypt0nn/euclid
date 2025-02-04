@@ -37,7 +37,7 @@ pub enum CLI {
 
         #[command(subcommand)]
         command: tokenizer::TokenizerCLI
-    },
+    }
 }
 
 impl CLI {

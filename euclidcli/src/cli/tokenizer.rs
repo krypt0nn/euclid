@@ -176,6 +176,7 @@ impl TokenizerCLI {
                 println!("  Embedding context radius: {}", format!("{}", params.embedding_context_radius).yellow());
                 println!("                Parameters: {}", format!("{}", params.parameters).yellow());
 
+                let device = CPUDevice::default();
                 let parser = DocumentsParser::new(lowercase);
 
                 let result = dataset.for_each(move |i, document| {
@@ -218,7 +219,7 @@ impl TokenizerCLI {
                                 println!("{}", "✅ Model saved".green());
                             }
 
-                            let embedding = model.encode(token as usize);
+                            let embedding = model.encode(token as usize, &device);
 
                             database.insert_embedding::<f32>(token, &embedding)?;
                         }
@@ -284,14 +285,16 @@ impl TokenizerCLI {
                 println!("                Parameters: {}", format!("{}", params.parameters).yellow());
 
                 let backpropagation = Rc::new(Mutex::new({
-                    Backpropagation::<{ GenericWordEmbeddingsModel::<1024, 32, f32>::PARAMS }, f32>::default()
+                    Backpropagation::<{ GenericWordEmbeddingsModel::<16384, 128, f32>::PARAMS }, f32>::default()
                         .with_warmup_duration(warmup_duration)
                         .with_cycle_radius(cycle_radius)
                         .with_cycle_period(cycle_period)
                         .with_learn_rate(learn_rate)
                 }));
 
+                let mut device = CPUDevice::default();
                 let parser = DocumentsParser::new(lowercase);
+
                 let mut epoch = 1;
 
                 let training_start = Instant::now();
@@ -335,10 +338,10 @@ impl TokenizerCLI {
                             println!("  ⏳ Training on {} parsed tokens...", document.len());
 
                             backpropagation.lock().unwrap().timestep(|mut policy| {
-                                model.lock().unwrap().train::<{ GenericWordEmbeddingsModel::<1024, 32, f32>::PARAMS }>(&document, &mut policy);
+                                model.lock().unwrap().train(&document, &mut policy, &mut device);
                             });
 
-                            let loss = model.lock().unwrap().total_loss(&document);
+                            let loss = model.lock().unwrap().total_loss(&document, &device);
 
                             println!("  {}", format!("✅ Done after {:.1} seconds", now.elapsed().as_secs_f32()).green());
                             println!("       Min loss: {}", format!("{:.8}", loss.min_loss).yellow());
@@ -379,7 +382,7 @@ impl TokenizerCLI {
                         println!("  ⏳ Updating token embeddings...");
 
                         let tokens = database.for_each(|token, _| {
-                            let embedding = model.encode(token as usize);
+                            let embedding = model.encode(token as usize, &device);
 
                             database.insert_embedding::<f32>(token, &embedding)?;
 

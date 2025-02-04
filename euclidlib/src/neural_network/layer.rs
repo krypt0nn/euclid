@@ -153,13 +153,87 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
             .sum()
     }
 
-    /// Calculate activated outputs of the neurons (perform forward propagation).
-    pub fn forward(&self, input: impl IntoHeapArray<F, INPUT_SIZE>) -> Box<[F; OUTPUT_SIZE]> {
+    /// Calculate activated outputs of the neurons (perform forward propagation)
+    /// using provided calculations device.
+    pub fn forward(
+        &self,
+        inputs: impl IntoHeapArray<F, INPUT_SIZE>,
+        device: &impl Device
+    ) -> Box<[F; OUTPUT_SIZE]> {
         unsafe {
-            let input = input.into_heap_array();
+            let inputs = inputs.into_heap_array();
 
-            alloc_fixed_heap_array_from(|i| self.neurons[i].forward(&input))
-                .expect("Failed to allocate memory for neurons layer outputs")
+            let mut outputs = alloc_fixed_heap_array()
+                .expect("Failed to allocate memory for neurons layer outputs");
+
+            device.forward(&self.neurons, &inputs, &mut outputs);
+
+            outputs
+        }
+    }
+
+    #[allow(unused_braces)]
+    /// Update weights and biases of the neurons in the current layer
+    /// and return their mean gradients for further backward propagation.
+    pub fn backward(
+        &mut self,
+        inputs: impl IntoHeapArray<F, INPUT_SIZE>,
+        outputs: impl IntoHeapArray<F, OUTPUT_SIZE>,
+        policy: &mut BackpropagationSnapshot<{ Layer::<INPUT_SIZE, OUTPUT_SIZE, F>::PARAMS }, F>,
+        device: &mut impl Device
+    ) -> Box<[F; INPUT_SIZE]>
+    where
+        [(); { Neuron::<INPUT_SIZE, F>::PARAMS }]: Sized
+    {
+        unsafe {
+            let inputs = inputs.into_heap_array();
+            let outputs = outputs.into_heap_array();
+
+            let mut gradients = alloc_fixed_heap_array()
+                .expect("Failed to allocate memory for neurons gradients");
+
+            device.backward(
+                self.neurons.as_mut(),
+                &inputs,
+                &outputs,
+                &mut gradients,
+                policy
+            );
+
+            gradients
+        }
+    }
+
+    #[allow(unused_braces)]
+    /// Update weights and biases of the neurons in the current layer
+    /// using gradients provided by the next layer, and return updated
+    /// gradients back for the layer staying before the current one.
+    pub fn backward_propagated(
+        &mut self,
+        inputs: impl IntoHeapArray<F, INPUT_SIZE>,
+        forward_gradients: impl IntoHeapArray<F, OUTPUT_SIZE>,
+        policy: &mut BackpropagationSnapshot<{ Layer::<INPUT_SIZE, OUTPUT_SIZE, F>::PARAMS }, F>,
+        device: &mut impl Device
+    ) -> Box<[F; INPUT_SIZE]>
+    where
+        [(); { Neuron::<INPUT_SIZE, F>::PARAMS }]: Sized
+    {
+        unsafe {
+            let inputs = inputs.into_heap_array();
+            let forward_gradients = forward_gradients.into_heap_array();
+
+            let mut backward_gradients = alloc_fixed_heap_array_with(F::ZERO)
+                .expect("Failed to allocate memory for neurons layer backpropagation gradients");
+
+            device.backward_propagated(
+                self.neurons.as_mut(),
+                &inputs,
+                &forward_gradients,
+                &mut backward_gradients,
+                policy
+            );
+
+            backward_gradients
         }
     }
 
@@ -182,86 +256,6 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
 
         loss
     }
-
-    #[allow(unused_braces)]
-    /// Update weights and biases of the neurons in the current layer
-    /// and return their mean gradients for further backward propagation.
-    pub fn backward(
-        &mut self,
-        input: impl IntoHeapArray<F, INPUT_SIZE>,
-        expected_output: impl IntoHeapArray<F, OUTPUT_SIZE>,
-        policy: &mut BackpropagationSnapshot<'_, { Self::PARAMS }, F>
-    ) -> Box<[F; INPUT_SIZE]> where [(); Neuron::<INPUT_SIZE, F>::PARAMS]: Sized {
-        let input = unsafe {
-            input.into_heap_array()
-        };
-
-        let expected_output = unsafe {
-            expected_output.into_heap_array()
-        };
-
-        let mut gradients = unsafe {
-            alloc_fixed_heap_array_with(F::ZERO)
-                .expect("Failed to allocate memory for neurons layer backpropagation gradients")
-        };
-
-        let div = F::from_float(INPUT_SIZE as f32);
-
-        for i in 0..OUTPUT_SIZE {
-            let neuron_gradients = policy.window(Neuron::<INPUT_SIZE, F>::PARAMS * i, |mut policy| {
-                self.neurons[i].backward(&input, expected_output[i], &mut policy)
-            });
-
-            for j in 0..INPUT_SIZE {
-                // Divide it here because there's a chance that the generic F type
-                // is implemented in a way where we can't accumulate large values
-                // so it will overflow at some point and return invalid result.
-                gradients[j] += neuron_gradients[j] / div;
-            }
-        }
-
-        gradients
-    }
-
-    /// Update weights and biases of the neurons in the current layer
-    /// using gradients provided by the next layer, and return updated
-    /// gradients back for the layer staying before the current one.
-    pub fn backward_propagated(
-        &mut self,
-        input: impl IntoHeapArray<F, INPUT_SIZE>,
-        output_gradient: impl IntoHeapArray<F, OUTPUT_SIZE>,
-        policy: &mut BackpropagationSnapshot<'_, { Self::PARAMS }, F>
-    ) -> Box<[F; INPUT_SIZE]> where [(); Neuron::<INPUT_SIZE, F>::PARAMS]: Sized {
-        let input = unsafe {
-            input.into_heap_array()
-        };
-
-        let output_gradient = unsafe {
-            output_gradient.into_heap_array()
-        };
-
-        let mut gradients = unsafe {
-            alloc_fixed_heap_array_with(F::ZERO)
-                .expect("Failed to allocate memory for neurons layer backpropagation gradients")
-        };
-
-        let div = F::from_float(INPUT_SIZE as f32);
-
-        for i in 0..OUTPUT_SIZE {
-            let neuron_gradients = policy.window(Neuron::<INPUT_SIZE, F>::PARAMS * i, |mut policy| {
-                self.neurons[i].backward_propagated(&input, output_gradient[i], &mut policy)
-            });
-
-            for j in 0..INPUT_SIZE {
-                // Divide it here because there's a chance that the generic F type
-                // is implemented in a way where we can't accumulate large values
-                // so it will overflow at some point and return invalid result.
-                gradients[j] += neuron_gradients[j] / div;
-            }
-        }
-
-        gradients
-    }
 }
 
 #[test]
@@ -272,8 +266,11 @@ fn test_neurons_layer_backward_propagation() {
     let mut layer = Layer32::<1, 2>::sigmoid();
 
     // Prepare backpropagatrion policy for this layer.
-    let mut backpropagation = Backpropagation::default()
+    let mut backpropagation = Backpropagation::<4, f32>::default()
         .with_learn_rate(0.01);
+
+    // Prepare CPU device.
+    let mut device = CPUDevice::default();
 
     // Prepare list of train samples.
     let examples = [
@@ -291,18 +288,18 @@ fn test_neurons_layer_backward_propagation() {
     for _ in 0..1000 {
         for (input, output) in examples {
             backpropagation.timestep(|mut policy| {
-                layer.backward(&[input], &output, &mut policy);
+                layer.backward(&[input], &output, &mut policy, &mut device);
             });
         }
     }
 
     // Validate its output.
-    let output = layer.forward([0.23]);
+    let output = layer.forward([0.23], &device);
 
     assert!(output[0] < 0.5);
     assert!(output[1] > 0.5);
 
-    assert!(layer.loss(&output, &[0.0, 1.0]) < 0.5);
+    assert!(layer.loss(&output, [0.0, 1.0]) < 0.5);
 
     // Test quantized neuron.
     // let quant_layer = layer.quantize::<qf8_4_2>();
@@ -329,8 +326,11 @@ fn test_linked_neurons_layers_backward_propagation() {
     let mut output_layer = Layer32::<4, 1>::sigmoid();
 
     // Prepare backpropagatrion policy for these layers.
-    let mut policy_input = Backpropagation::default().with_learn_rate(0.001);
-    let mut policy_output = Backpropagation::default().with_learn_rate(0.001);
+    let mut policy_input = Backpropagation::<{ Layer::<2, 4, f32>::PARAMS }, f32>::default().with_learn_rate(0.001);
+    let mut policy_output = Backpropagation::<{ Layer::<4, 1, f32>::PARAMS }, f32>::default().with_learn_rate(0.001);
+
+    // Prepare CPU device.
+    let mut device = CPUDevice::default();
 
     // Prepare list of train samples.
     let examples = [
@@ -369,23 +369,23 @@ fn test_linked_neurons_layers_backward_propagation() {
     // Train both layers on given samples for 1000 epochs.
     for _ in 0..1000 {
         for (input, output) in examples {
-            let hidden_output = input_layer.forward(input);
+            let hidden_output = input_layer.forward(input, &device);
 
             let gradients = policy_output.timestep(|mut policy| {
-                output_layer.backward(&hidden_output, &[output], &mut policy)
+                output_layer.backward(&hidden_output, &[output], &mut policy, &mut device)
             });
 
             policy_input.timestep(|mut policy| {
-                input_layer.backward_propagated(&input, &gradients, &mut policy);
+                input_layer.backward_propagated(&input, &gradients, &mut policy, &mut device);
             });
         }
     }
 
     // Validate trained layers.
-    let hidden_output = input_layer.forward([-0.9, -0.3]);
+    let hidden_output = input_layer.forward([-0.9, -0.3], &device);
 
-    let output = output_layer.forward(&hidden_output);
+    let output = output_layer.forward(&hidden_output, &device);
 
     assert!(output[0] > 0.5);
-    assert!(output_layer.loss(&output, &[1.0]) < 1.0);
+    assert!(output_layer.loss(&output, [1.0]) < 1.0);
 }

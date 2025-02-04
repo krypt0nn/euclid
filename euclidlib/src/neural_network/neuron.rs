@@ -388,12 +388,10 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
 
     #[inline]
     /// Calculate activated output of the neuron (perform forward propagation).
-    pub fn forward(&self, input: impl IntoHeapArray<F, INPUT_SIZE>) -> F {
-        let input = unsafe {
-            input.into_heap_array()
-        };
-
-        (self.activation_function)(self.make_weighted_input(&input))
+    pub fn forward(&self, inputs: impl IntoHeapArray<F, INPUT_SIZE>) -> F {
+        unsafe {
+            (self.activation_function)(self.make_weighted_input(&inputs.into_heap_array()))
+        }
     }
 
     #[inline]
@@ -449,7 +447,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         backward_gradients_buf: &mut [F; INPUT_SIZE]
     ) {
         // Calculate argument of the activation function.
-        let argument = self.make_weighted_input(&inputs);
+        let argument = self.make_weighted_input(inputs);
 
         // Calculate activated value returned by the neuron.
         let actual_output = (self.activation_function)(argument);
@@ -470,7 +468,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         }
 
         // Backpropagate weights and bias using calculated gradients.
-        policy.backpropagate(input_values_buf, &forward_gradients_buf);
+        policy.backpropagate(input_values_buf, forward_gradients_buf);
 
         // Update weights and bias from the output values.
         self.bias = input_values_buf[0];
@@ -525,7 +523,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         backward_gradients_buf: &mut [F; INPUT_SIZE]
     ) {
         // Calculate argument of the activation function.
-        let argument = self.make_weighted_input(&inputs);
+        let argument = self.make_weighted_input(inputs);
 
         // Calculate gradient of the current neuron using gradient
         // of the connected forward neurons.
@@ -543,7 +541,7 @@ impl<const INPUT_SIZE: usize, F: Float> Neuron<INPUT_SIZE, F> {
         }
 
         // Backpropagate weights and bias using calculated gradients.
-        policy.backpropagate(input_values_buf, &forward_gradients_buf);
+        policy.backpropagate(input_values_buf, forward_gradients_buf);
 
         // Update weights and bias from the output values.
         self.bias = input_values_buf[0];
