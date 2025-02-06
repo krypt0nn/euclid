@@ -1,8 +1,4 @@
 /target
+/results
 /Cargo.lock
 /.direnv
-
-/*.txt
-/*.csv
-/*.db
-/*.db-journal

@@ -2,9 +2,19 @@ use crate::prelude::*;
 
 pub mod cpu;
 
+#[cfg(feature = "gpu")]
+pub mod gpu;
+
+pub mod dynamic;
+
 pub mod prelude {
     pub use super::Device;
     pub use super::cpu::CPUDevice;
+
+    #[cfg(feature = "gpu")]
+    pub use super::gpu::GPUDevice;
+
+    pub use super::dynamic::DynamicDevice;
 }
 
 /// Abstraction over device which can preform calculations.

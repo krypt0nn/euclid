@@ -269,8 +269,8 @@ fn test_neurons_layer_backward_propagation() {
     let mut backpropagation = Backpropagation::<4, f32>::default()
         .with_learn_rate(0.01);
 
-    // Prepare CPU device.
-    let mut device = CPUDevice::default();
+    // Prepare device.
+    let mut device = DynamicDevice::default();
 
     // Prepare list of train samples.
     let examples = [
@@ -329,8 +329,8 @@ fn test_linked_neurons_layers_backward_propagation() {
     let mut policy_input = Backpropagation::<{ Layer::<2, 4, f32>::PARAMS }, f32>::default().with_learn_rate(0.001);
     let mut policy_output = Backpropagation::<{ Layer::<4, 1, f32>::PARAMS }, f32>::default().with_learn_rate(0.001);
 
-    // Prepare CPU device.
-    let mut device = CPUDevice::default();
+    // Prepare device.
+    let mut device = DynamicDevice::default();
 
     // Prepare list of train samples.
     let examples = [

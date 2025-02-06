@@ -176,7 +176,7 @@ impl TokenizerCLI {
                 println!("  Embedding context radius: {}", format!("{}", params.embedding_context_radius).yellow());
                 println!("                Parameters: {}", format!("{}", params.parameters).yellow());
 
-                let device = CPUDevice::default();
+                let device = DynamicDevice::default();
                 let parser = DocumentsParser::new(lowercase);
 
                 let result = dataset.for_each(move |i, document| {
@@ -292,7 +292,7 @@ impl TokenizerCLI {
                         .with_learn_rate(learn_rate)
                 }));
 
-                let mut device = CPUDevice::default();
+                let mut device = DynamicDevice::default();
                 let parser = DocumentsParser::new(lowercase);
 
                 let mut epoch = 1;
@@ -311,7 +311,7 @@ impl TokenizerCLI {
                         let backpropagation = backpropagation.clone();
                         let mean_loss = mean_loss.clone();
 
-                        dataset.for_each(move |i, document| {
+                        dataset.for_each(|i, document| {
                             if document.name.is_empty() {
                                 println!("  ⏳ Parsing document №{i}...");
                             } else {
