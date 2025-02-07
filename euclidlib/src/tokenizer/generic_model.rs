@@ -93,9 +93,30 @@ impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> GenericMode
     /// For example, in tokens `[0, 1, 2, 3, 4]` and `radius = 2` for target token
     /// `2` the input slice will be `[0, 1, 3, 4]`. In other words, you train
     /// the model to predict token sitting in the middle of `radius * 2` tokens.
+    ///
+    /// Internally this method runs `train_skippable` with callback that always returns false.
     pub fn train<const CONTEXT_RADIUS: usize>(
         &mut self,
         tokens: &[usize],
+        policy: &mut BackpropagationSnapshot<{ Self::PARAMS }, F>,
+        device: &mut impl Device
+    )
+    where
+        [(); { Layer::<EMBEDDING_SIZE, TOKENS_NUM, F>::PARAMS }]: Sized,
+        [(); { Layer::<TOKENS_NUM, EMBEDDING_SIZE, F>::PARAMS }]: Sized,
+        [(); { Neuron::<EMBEDDING_SIZE, F>::PARAMS }]: Sized,
+        [(); { Neuron::<TOKENS_NUM, F>::PARAMS }]: Sized
+    {
+        self.train_skippable::<CONTEXT_RADIUS>(tokens, |_| false, policy, device);
+    }
+
+    #[allow(unused_braces)]
+    /// Use `skip_token` callback to skip training for specific tokens.
+    /// Can be used to skip non-frequent tokens to improve performance.
+    pub fn train_skippable<const CONTEXT_RADIUS: usize>(
+        &mut self,
+        tokens: &[usize],
+        skip_token: impl Fn(usize) -> bool,
         policy: &mut BackpropagationSnapshot<{ Self::PARAMS }, F>,
         device: &mut impl Device
     )
@@ -115,47 +136,49 @@ impl<const TOKENS_NUM: usize, const EMBEDDING_SIZE: usize, F: Float> GenericMode
 
         // For each token in the input sequence.
         for i in CONTEXT_RADIUS..n - CONTEXT_RADIUS {
-            // 1. Prepare context tokens vector.
-            #[allow(clippy::needless_range_loop)]
-            for j in i - CONTEXT_RADIUS..i + CONTEXT_RADIUS {
-                if j != i {
+            if !skip_token(tokens[i]) {
+                // 1. Prepare context tokens vector.
+                #[allow(clippy::needless_range_loop)]
+                for j in i - CONTEXT_RADIUS..i + CONTEXT_RADIUS {
+                    if j != i {
+                        tokens_one_hot[tokens[j]] = F::ONE;
+                    }
+                }
+
+                // 2. Calculate embedding for context tokens.
+                let embedding = self.encoder_decoder.encode(&tokens_one_hot, device);
+
+                // 3. Prepare one-hot encoding for target token.
+                #[allow(clippy::needless_range_loop)]
+                for j in i - CONTEXT_RADIUS..i + CONTEXT_RADIUS {
+                    tokens_one_hot[tokens[j]] = F::ZERO;
+                }
+
+                tokens_one_hot[tokens[i]] = F::ONE;
+
+                // 4. Train decoder to predict the target token.
+                let gradients = policy.window::<{ Layer::<EMBEDDING_SIZE, TOKENS_NUM, F>::PARAMS }, _>(0, |mut policy| {
+                    self.encoder_decoder.train_decoder(&embedding, &tokens_one_hot, &mut policy, device)
+                });
+
+                // 5. Prepare context tokens vector again.
+                #[allow(clippy::needless_range_loop)]
+                for j in i - CONTEXT_RADIUS..i + CONTEXT_RADIUS {
                     tokens_one_hot[tokens[j]] = F::ONE;
                 }
-            }
 
-            // 2. Calculate embedding for context tokens.
-            let embedding = self.encoder_decoder.encode(&tokens_one_hot, device);
+                tokens_one_hot[tokens[i]] = F::ZERO;
 
-            // 3. Prepare one-hot encoding for target token.
-            #[allow(clippy::needless_range_loop)]
-            for j in i - CONTEXT_RADIUS..i + CONTEXT_RADIUS {
-                tokens_one_hot[tokens[j]] = F::ZERO;
-            }
+                // 6. Backpropagate encoder with decoder's gradients.
+                policy.window::<{ Layer::<TOKENS_NUM, EMBEDDING_SIZE, F>::PARAMS }, _>(Layer::<EMBEDDING_SIZE, TOKENS_NUM, F>::PARAMS, |mut policy| {
+                    self.encoder_decoder.encoder.backward_propagated(&tokens_one_hot, &gradients, &mut policy, device);
+                });
 
-            tokens_one_hot[tokens[i]] = F::ONE;
-
-            // 4. Train decoder to predict the target token.
-            let gradients = policy.window::<{ Layer::<EMBEDDING_SIZE, TOKENS_NUM, F>::PARAMS }, _>(0, |mut policy| {
-                self.encoder_decoder.train_decoder(&embedding, &tokens_one_hot, &mut policy, device)
-            });
-
-            // 5. Prepare context tokens vector again.
-            #[allow(clippy::needless_range_loop)]
-            for j in i - CONTEXT_RADIUS..i + CONTEXT_RADIUS {
-                tokens_one_hot[tokens[j]] = F::ONE;
-            }
-
-            tokens_one_hot[tokens[i]] = F::ZERO;
-
-            // 6. Backpropagate encoder with decoder's gradients.
-            policy.window::<{ Layer::<TOKENS_NUM, EMBEDDING_SIZE, F>::PARAMS }, _>(Layer::<EMBEDDING_SIZE, TOKENS_NUM, F>::PARAMS, |mut policy| {
-                self.encoder_decoder.encoder.backward_propagated(&tokens_one_hot, &gradients, &mut policy, device);
-            });
-
-            // 7. Restore one-hot embedding buffer.
-            #[allow(clippy::needless_range_loop)]
-            for j in i - CONTEXT_RADIUS..i + CONTEXT_RADIUS {
-                tokens_one_hot[tokens[j]] = F::ZERO;
+                // 7. Restore one-hot embedding buffer.
+                #[allow(clippy::needless_range_loop)]
+                for j in i - CONTEXT_RADIUS..i + CONTEXT_RADIUS {
+                    tokens_one_hot[tokens[j]] = F::ZERO;
+                }
             }
         }
     }
