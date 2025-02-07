@@ -18,7 +18,11 @@ pub enum DatasetCLI {
 
         #[arg(long, default_value_t = String::new())]
         /// Name of the document.
-        name: String
+        name: String,
+
+        #[arg(long)]
+        /// Read input file as discord chat history export in JSON format.
+        discord_chat: bool
     }
 }
 
@@ -41,7 +45,7 @@ impl DatasetCLI {
                 }
             }
 
-            Self::Insert { document, name } => {
+            Self::Insert { document, name, discord_chat } => {
                 let database = path.canonicalize().unwrap_or(path);
 
                 println!("⏳ Opening database in {database:?}...");
@@ -53,6 +57,81 @@ impl DatasetCLI {
                         println!("⏳ Reading document {document:?}...");
 
                         match std::fs::read_to_string(document) {
+                            Ok(document) if discord_chat => {
+                                #[derive(serde::Deserialize)]
+                                struct Chat {
+                                    pub guild: Guild,
+                                    pub channel: Channel,
+                                    pub messages: Vec<Message>
+                                }
+
+                                #[derive(serde::Deserialize)]
+                                struct Guild {
+                                    pub name: String
+                                }
+
+                                #[derive(serde::Deserialize)]
+                                struct Channel {
+                                    // pub category: String,
+                                    pub name: String,
+                                    pub topic: String
+                                }
+
+                                #[derive(serde::Deserialize)]
+                                struct Message {
+                                    pub content: String,
+                                    pub author: Author
+                                }
+
+                                #[derive(serde::Deserialize)]
+                                struct Author {
+                                    pub name: String,
+                                    // pub nickname: String
+                                }
+
+                                let chat = match serde_json::from_str::<Chat>(&document) {
+                                    Ok(chat) => chat,
+                                    Err(err) => {
+                                        eprintln!("{}", format!("🧯 Failed to parse chat history: {err}").red());
+
+                                        return Ok(());
+                                    }
+                                };
+
+                                drop(document);
+
+                                println!("⏳ Inserting {} chat messages...", chat.messages.len());
+
+                                let chat_name = format!(
+                                    "<server>{}</server><channel>#{}</channel><topic>{}</topic>",
+                                    &chat.guild.name,
+                                    &chat.channel.name,
+                                    &chat.channel.topic
+                                );
+
+                                for i in 0..chat.messages.len() {
+                                    let message = &chat.messages[i];
+
+                                    let prev_message = chat.messages.get(i - 1)
+                                        .map(|message| message.content.as_str())
+                                        .unwrap_or("");
+
+                                    let document = Document::default()
+                                        .with_name(&chat_name)
+                                        .with_input(prev_message)
+                                        .with_output(&message.content)
+                                        .with_context(format!("<author>@{}</author>", message.author.name));
+
+                                    if let Err(err) = database.insert(&document) {
+                                        eprintln!("{}", format!("🧯 Failed to insert document: {err}").red());
+
+                                        return Ok(());
+                                    }
+                                }
+
+                                println!("{}", "✅ Documents inserted".green());
+                            }
+
                             Ok(document) => {
                                 let document = Document::new(document)
                                     .with_name(name);
