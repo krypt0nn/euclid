@@ -77,6 +77,16 @@ pub enum TokenizerCLI {
         save_interval: u32
     },
 
+    Compare {
+        #[arg(long)]
+        /// Convert all the words to lowercase.
+        lowercase: bool,
+
+        #[arg(long, default_value_t = 10)]
+        /// Amount of closest words to return.
+        number: usize
+    },
+
     /// Export tokens and their embeddings to a CSV file.
     Export {
         #[arg(long)]
@@ -400,6 +410,107 @@ impl TokenizerCLI {
                     }
 
                     epoch += 1;
+                }
+            }
+
+            Self::Compare { lowercase, number } => {
+                let database = path.canonicalize().unwrap_or(path);
+
+                println!("⏳ Opening tokenizer database in {database:?}...");
+
+                let database = match TokensDatabase::open(&database, cache_size) {
+                    Ok(database) => Rc::new(database),
+                    Err(err) => {
+                        eprintln!("{}", format!("🧯 Failed to open tokenizer database: {err}").red());
+
+                        return Ok(());
+                    }
+                };
+
+                println!("{}\n", "✅ Database opened".green());
+
+                let stdin = std::io::stdin();
+                let mut stdout = std::io::stdout();
+
+                loop {
+                    stdout.write_all(format!("🔍 {}: ", "Word".blue()).as_bytes())?;
+                    stdout.flush()?;
+
+                    let mut word = String::new();
+
+                    stdin.read_line(&mut word)?;
+
+                    stdout.write_all(b"\n")?;
+                    stdout.flush()?;
+
+                    if lowercase {
+                        word = word.to_lowercase();
+                    }
+
+                    match database.query_token(word.trim()) {
+                        Ok(Some(token)) => {
+                            match database.query_embedding::<f32>(token) {
+                                Ok(Some(embedding)) => {
+                                    let mut distances = Vec::with_capacity(1024);
+
+                                    database.for_each(|other_token, word| {
+                                        if other_token != token {
+                                            if let Ok(Some(other_embedding)) = database.query_embedding::<f32>(other_token) {
+                                                let distance = cosine_similarity::<64, f32>(&embedding, &other_embedding);
+
+                                                distances.push((word, distance));
+                                            }
+                                        }
+
+                                        Ok(())
+                                    })?;
+
+                                    distances.sort_by(|a, b| {
+                                        if a.1 == b.1 {
+                                            std::cmp::Ordering::Equal
+                                        } else if a.1 < b.1 {
+                                            std::cmp::Ordering::Greater
+                                        } else {
+                                            std::cmp::Ordering::Less
+                                        }
+                                    });
+
+                                    let distances = if distances.len() > number {
+                                        &distances[..number]
+                                    } else {
+                                        &distances
+                                    };
+
+                                    for (i, (word, distance)) in distances.iter().enumerate() {
+                                        stdout.write_all(format!("{}. {} [{:.8}]\n", i + 1, format!("\"{word}\"").yellow(), distance).as_bytes())?;
+                                    }
+                                }
+
+                                Ok(None) => {
+                                    eprintln!("{}", format!("🧯 Word is indexed as {token}, but it has no embedding").red());
+
+                                    return Ok(());
+                                }
+
+                                Err(err) => {
+                                    eprintln!("{}", format!("🧯 Failed to query word embedding: {err}").red());
+
+                                    return Ok(());
+                                }
+                            }
+                        }
+
+                        Ok(None) => stdout.write_all("📖 Word is not indexed\n".as_bytes())?,
+
+                        Err(err) => {
+                            eprintln!("{}", format!("🧯 Failed to query token: {err}").red());
+
+                            return Ok(());
+                        }
+                    }
+
+                    stdout.write_all(b"\n")?;
+                    stdout.flush()?;
                 }
             }
 
