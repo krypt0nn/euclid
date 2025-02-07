@@ -74,7 +74,7 @@ impl DatasetCLI {
                                 struct Channel {
                                     // pub category: String,
                                     pub name: String,
-                                    pub topic: String
+                                    pub topic: Option<String>
                                 }
 
                                 #[derive(serde::Deserialize)]
@@ -106,7 +106,7 @@ impl DatasetCLI {
                                     "<server>{}</server><channel>#{}</channel><topic>{}</topic>",
                                     &chat.guild.name,
                                     &chat.channel.name,
-                                    &chat.channel.topic
+                                    chat.channel.topic.as_deref().unwrap_or("")
                                 );
 
                                 for i in 0..chat.messages.len() {

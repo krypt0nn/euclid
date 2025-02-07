@@ -42,22 +42,22 @@ pub enum SizedModel<F: Float> {
     // ! in other parts of the code as well and you will have to find and
     // ! update them there too.
 
-    /// 1K tokens, 32 dimensions, 4 context tokens, 66K parameters.
+    /// 1K tokens, 32 dimensions, 4 context tokens, 18K parameters.
     Tiny(GenericWordEmbeddingsModel<1024, 8, F>),
 
-    /// 4K tokens, 64 dimensions, 4 context tokens, 500K parameters.
+    /// 4K tokens, 64 dimensions, 4 context tokens, 135K parameters.
     Small(GenericWordEmbeddingsModel<4096, 16, F>),
 
-    /// 16K tokens, 128 dimensions, 8 context tokens, 4M parameters.
+    /// 16K tokens, 128 dimensions, 8 context tokens, 803K parameters.
     Medium(GenericWordEmbeddingsModel<16384, 24, F>),
 
-    /// 65K tokens, 256 dimensions, 8 context tokens, 33M parameters.
+    /// 65K tokens, 256 dimensions, 8 context tokens, 4.2M parameters.
     Large(GenericWordEmbeddingsModel<65536, 32, F>),
 
-    /// 250K tokens, 512 dimensions, 12 context tokens, 269M parameters.
+    /// 250K tokens, 512 dimensions, 12 context tokens, 25.4M parameters.
     Huge(GenericWordEmbeddingsModel<262144, 48, F>),
 
-    /// 1M tokens, 1024 dimensions, 12 context tokens, 2B parameters.
+    /// 1M tokens, 1024 dimensions, 12 context tokens, 135.2M parameters.
     Giant(GenericWordEmbeddingsModel<1048576, 64, F>)
 }
 
