@@ -21,8 +21,22 @@ pub enum DatasetCLI {
         name: String,
 
         #[arg(long)]
+        /// Convert content of the document to lowercase.
+        lowercase: bool,
+
+        #[arg(long)]
         /// Read input file as discord chat history export in JSON format.
-        discord_chat: bool
+        discord_chat: bool,
+
+        #[arg(long)]
+        /// Split discord chat messages into separate documents.
+        discord_split_documents: bool,
+
+        #[arg(long, default_value_t = 0)]
+        /// Use last N messages from the discord chat history.
+        ///
+        /// When 0 is set (default), then all messages are used.
+        discord_last_n: usize
     }
 }
 
@@ -45,7 +59,7 @@ impl DatasetCLI {
                 }
             }
 
-            Self::Insert { document, name, discord_chat } => {
+            Self::Insert { document, name, lowercase, discord_chat, discord_split_documents, discord_last_n } => {
                 let database = path.canonicalize().unwrap_or(path);
 
                 println!("⏳ Opening database in {database:?}...");
@@ -57,7 +71,7 @@ impl DatasetCLI {
                         println!("⏳ Reading document {document:?}...");
 
                         match std::fs::read_to_string(document) {
-                            Ok(document) if discord_chat => {
+                            Ok(mut document) if discord_chat => {
                                 #[derive(serde::Deserialize)]
                                 struct Chat {
                                     pub guild: Guild,
@@ -89,6 +103,10 @@ impl DatasetCLI {
                                     // pub nickname: String
                                 }
 
+                                if lowercase {
+                                    document = document.to_lowercase();
+                                }
+
                                 let chat = match serde_json::from_str::<Chat>(&document) {
                                     Ok(chat) => chat,
                                     Err(err) => {
@@ -100,8 +118,6 @@ impl DatasetCLI {
 
                                 drop(document);
 
-                                println!("⏳ Inserting {} chat messages...", chat.messages.len());
-
                                 let chat_name = format!(
                                     "<server>{}</server><channel>#{}</channel><topic>{}</topic>",
                                     &chat.guild.name,
@@ -109,18 +125,47 @@ impl DatasetCLI {
                                     chat.channel.topic.as_deref().unwrap_or("")
                                 );
 
-                                for i in 0..chat.messages.len() {
-                                    let message = &chat.messages[i];
+                                let messages = if discord_last_n == 0 || discord_last_n >= chat.messages.len() {
+                                    &chat.messages
+                                } else {
+                                    &chat.messages[chat.messages.len() - discord_last_n..]
+                                };
 
-                                    let prev_message = chat.messages.get(i - 1)
-                                        .map(|message| message.content.as_str())
-                                        .unwrap_or("");
+                                println!("⏳ Inserting {} chat messages...", messages.len());
 
-                                    let document = Document::default()
-                                        .with_name(&chat_name)
-                                        .with_input(prev_message)
-                                        .with_output(&message.content)
-                                        .with_context(format!("<author>@{}</author>", message.author.name));
+                                if discord_split_documents {
+                                    for i in 0..messages.len() {
+                                        let message = &messages[i];
+
+                                        let prev_message = messages.get(i - 1)
+                                            .map(|message| message.content.as_str())
+                                            .unwrap_or("");
+
+                                        let document = Document::default()
+                                            .with_name(&chat_name)
+                                            .with_input(prev_message)
+                                            .with_output(&message.content)
+                                            .with_context(format!("<author>@{}</author>", message.author.name));
+
+                                        if let Err(err) = database.insert(&document) {
+                                            eprintln!("{}", format!("🧯 Failed to insert document: {err}").red());
+
+                                            return Ok(());
+                                        }
+                                    }
+                                }
+
+                                else {
+                                    let document = messages.iter()
+                                        .map(|message| format!(
+                                            "<message>@{}: {}</message>",
+                                            message.author.name,
+                                            message.content
+                                        ))
+                                        .fold(String::new(), |acc, message| acc + &message);
+
+                                    let document = Document::new(document)
+                                        .with_name(&chat_name);
 
                                     if let Err(err) = database.insert(&document) {
                                         eprintln!("{}", format!("🧯 Failed to insert document: {err}").red());
@@ -132,7 +177,11 @@ impl DatasetCLI {
                                 println!("{}", "✅ Documents inserted".green());
                             }
 
-                            Ok(document) => {
+                            Ok(mut document) => {
+                                if lowercase {
+                                    document = document.to_lowercase();
+                                }
+
                                 let document = Document::new(document)
                                     .with_name(name);
 

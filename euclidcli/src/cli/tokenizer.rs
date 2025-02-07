@@ -285,7 +285,7 @@ impl TokenizerCLI {
                 println!("                Parameters: {}", format!("{}", params.parameters).yellow());
 
                 let backpropagation = Rc::new(Mutex::new({
-                    Backpropagation::<{ GenericWordEmbeddingsModel::<16384, 128, f32>::PARAMS }, f32>::default()
+                    Backpropagation::<{ GenericWordEmbeddingsModel::<16384, 24, f32>::PARAMS }, f32>::default()
                         .with_warmup_duration(warmup_duration)
                         .with_cycle_radius(cycle_radius)
                         .with_cycle_period(cycle_period)
@@ -433,7 +433,7 @@ impl TokenizerCLI {
 
                 let result = database.clone().for_each(move |token, word| {
                     if let Some(first_char) = word.chars().next() {
-                        if first_char.is_alphanumeric() || first_char == '<' {
+                        if first_char.is_alphanumeric() || (first_char.is_ascii_punctuation() && !['"', '\\'].contains(&first_char)) {
                             if let Some(embedding) = database.query_embedding::<f32>(token)? {
                                 if !has_header {
                                     file.write_all(b"\"token\",\"word\"")?;
