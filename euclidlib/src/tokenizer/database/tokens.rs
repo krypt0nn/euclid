@@ -249,20 +249,20 @@ impl Database {
         [(); { 262144  + 1 } * F::BYTES]: Sized,
         [(); { 1048576 + 1 } * F::BYTES]: Sized,
 
-        [(); { 32   + 1 } * F::BYTES]: Sized,
-        [(); { 64   + 1 } * F::BYTES]: Sized,
-        [(); { 128  + 1 } * F::BYTES]: Sized,
-        [(); { 256  + 1 } * F::BYTES]: Sized,
-        [(); { 512  + 1 } * F::BYTES]: Sized,
-        [(); { 1024 + 1 } * F::BYTES]: Sized
+        [(); { 8  + 1 } * F::BYTES]: Sized,
+        [(); { 16 + 1 } * F::BYTES]: Sized,
+        [(); { 24 + 1 } * F::BYTES]: Sized,
+        [(); { 32 + 1 } * F::BYTES]: Sized,
+        [(); { 48 + 1 } * F::BYTES]: Sized,
+        [(); { 64 + 1 } * F::BYTES]: Sized
     {
         match model {
-            WordEmbeddingsModel::Tiny(model)   => self.save_model::<1024,    32,   F>(model),
-            WordEmbeddingsModel::Small(model)  => self.save_model::<4096,    64,   F>(model),
-            WordEmbeddingsModel::Medium(model) => self.save_model::<16384,   128,  F>(model),
-            WordEmbeddingsModel::Large(model)  => self.save_model::<65536,   256,  F>(model),
-            WordEmbeddingsModel::Huge(model)   => self.save_model::<262144,  512,  F>(model),
-            WordEmbeddingsModel::Giant(model)  => self.save_model::<1048576, 1024, F>(model)
+            WordEmbeddingsModel::Tiny(model)   => self.save_model::<1024,    8,  F>(model),
+            WordEmbeddingsModel::Small(model)  => self.save_model::<4096,    16, F>(model),
+            WordEmbeddingsModel::Medium(model) => self.save_model::<16384,   24, F>(model),
+            WordEmbeddingsModel::Large(model)  => self.save_model::<65536,   32, F>(model),
+            WordEmbeddingsModel::Huge(model)   => self.save_model::<262144,  48, F>(model),
+            WordEmbeddingsModel::Giant(model)  => self.save_model::<1048576, 64, F>(model)
         }
     }
 
@@ -405,24 +405,24 @@ impl Database {
         [(); { 262144  + 1 } * F::BYTES]: Sized,
         [(); { 1048576 + 1 } * F::BYTES]: Sized,
 
-        [(); { 32   + 1 } * F::BYTES]: Sized,
-        [(); { 64   + 1 } * F::BYTES]: Sized,
-        [(); { 128  + 1 } * F::BYTES]: Sized,
-        [(); { 256  + 1 } * F::BYTES]: Sized,
-        [(); { 512  + 1 } * F::BYTES]: Sized,
-        [(); { 1024 + 1 } * F::BYTES]: Sized
+        [(); { 8  + 1 } * F::BYTES]: Sized,
+        [(); { 16 + 1 } * F::BYTES]: Sized,
+        [(); { 24 + 1 } * F::BYTES]: Sized,
+        [(); { 32 + 1 } * F::BYTES]: Sized,
+        [(); { 48 + 1 } * F::BYTES]: Sized,
+        [(); { 64 + 1 } * F::BYTES]: Sized
     {
         let Some((inputs, embedding)) = self.saved_model_params()? else {
             return Ok(None);
         };
 
         match (inputs, embedding) {
-            (1024,    32)   => Ok(self.load_model::<1024,    32,   F>()?.map(WordEmbeddingsModel::from)),
-            (4096,    64)   => Ok(self.load_model::<4096,    64,   F>()?.map(WordEmbeddingsModel::from)),
-            (16384,   128)  => Ok(self.load_model::<16384,   128,  F>()?.map(WordEmbeddingsModel::from)),
-            (65536,   256)  => Ok(self.load_model::<65536,   256,  F>()?.map(WordEmbeddingsModel::from)),
-            (262144,  512)  => Ok(self.load_model::<262144,  512,  F>()?.map(WordEmbeddingsModel::from)),
-            (1048576, 1024) => Ok(self.load_model::<1048576, 1024, F>()?.map(WordEmbeddingsModel::from)),
+            (1024,     8) => Ok(self.load_model::<1024,    8,  F>()?.map(WordEmbeddingsModel::from)),
+            (4096,    16) => Ok(self.load_model::<4096,    16, F>()?.map(WordEmbeddingsModel::from)),
+            (16384,   24) => Ok(self.load_model::<16384,   24, F>()?.map(WordEmbeddingsModel::from)),
+            (65536,   32) => Ok(self.load_model::<65536,   32, F>()?.map(WordEmbeddingsModel::from)),
+            (262144,  48) => Ok(self.load_model::<262144,  48, F>()?.map(WordEmbeddingsModel::from)),
+            (1048576, 64) => Ok(self.load_model::<1048576, 64, F>()?.map(WordEmbeddingsModel::from)),
 
             _ => anyhow::bail!("Trying to load non-standard model with {inputs} inputs and {embedding} embedding size")
         }

@@ -43,59 +43,59 @@ pub enum SizedModel<F: Float> {
     // ! update them there too.
 
     /// 1K tokens, 32 dimensions, 4 context tokens, 66K parameters.
-    Tiny(GenericWordEmbeddingsModel<1024, 32, F>),
+    Tiny(GenericWordEmbeddingsModel<1024, 8, F>),
 
     /// 4K tokens, 64 dimensions, 4 context tokens, 500K parameters.
-    Small(GenericWordEmbeddingsModel<4096, 64, F>),
+    Small(GenericWordEmbeddingsModel<4096, 16, F>),
 
     /// 16K tokens, 128 dimensions, 8 context tokens, 4M parameters.
-    Medium(GenericWordEmbeddingsModel<16384, 128, F>),
+    Medium(GenericWordEmbeddingsModel<16384, 24, F>),
 
     /// 65K tokens, 256 dimensions, 8 context tokens, 33M parameters.
-    Large(GenericWordEmbeddingsModel<65536, 256, F>),
+    Large(GenericWordEmbeddingsModel<65536, 32, F>),
 
     /// 250K tokens, 512 dimensions, 12 context tokens, 269M parameters.
-    Huge(GenericWordEmbeddingsModel<262144, 512, F>),
+    Huge(GenericWordEmbeddingsModel<262144, 48, F>),
 
     /// 1M tokens, 1024 dimensions, 12 context tokens, 2B parameters.
-    Giant(GenericWordEmbeddingsModel<1048576, 1024, F>)
+    Giant(GenericWordEmbeddingsModel<1048576, 64, F>)
 }
 
 impl<F: Float> SizedModel<F> {
     #[inline]
     /// Create new tiny model with random parameters.
     pub fn random_tiny() -> Self {
-        Self::Tiny(GenericWordEmbeddingsModel::<1024, 32, F>::random())
+        Self::Tiny(GenericWordEmbeddingsModel::<1024, 8, F>::random())
     }
 
     #[inline]
     /// Create new small model with random parameters.
     pub fn random_small() -> Self {
-        Self::Small(GenericWordEmbeddingsModel::<4096, 64, F>::random())
+        Self::Small(GenericWordEmbeddingsModel::<4096, 16, F>::random())
     }
 
     #[inline]
     /// Create new medium model with random parameters.
     pub fn random_medium() -> Self {
-        Self::Medium(GenericWordEmbeddingsModel::<16384, 128, F>::random())
+        Self::Medium(GenericWordEmbeddingsModel::<16384, 24, F>::random())
     }
 
     #[inline]
     /// Create new large model with random parameters.
     pub fn random_large() -> Self {
-        Self::Large(GenericWordEmbeddingsModel::<65536, 256, F>::random())
+        Self::Large(GenericWordEmbeddingsModel::<65536, 32, F>::random())
     }
 
     #[inline]
     /// Create new huge model with random parameters.
     pub fn random_huge() -> Self {
-        Self::Huge(GenericWordEmbeddingsModel::<262144, 512, F>::random())
+        Self::Huge(GenericWordEmbeddingsModel::<262144, 48, F>::random())
     }
 
     #[inline]
     /// Create new giant model with random parameters.
     pub fn random_giant() -> Self {
-        Self::Giant(GenericWordEmbeddingsModel::<1048576, 1024, F>::random())
+        Self::Giant(GenericWordEmbeddingsModel::<1048576, 64, F>::random())
     }
 
     /// Convert given generic word embeddings model into dynamically sized.
@@ -155,11 +155,11 @@ impl<F: Float> SizedModel<F> {
     /// Upscale the model to the higher resolution.
     pub fn upscale(&self) -> Option<Self> {
         match self {
-            Self::Tiny(model)   => Self::from_generic(model.resize::<4096,    64>()),
-            Self::Small(model)  => Self::from_generic(model.resize::<16384,   128>()),
-            Self::Medium(model) => Self::from_generic(model.resize::<65536,   256>()),
-            Self::Large(model)  => Self::from_generic(model.resize::<262144,  512>()),
-            Self::Huge(model)   => Self::from_generic(model.resize::<1048576, 1024>()),
+            Self::Tiny(model)   => Self::from_generic(model.resize::<4096,    16>()),
+            Self::Small(model)  => Self::from_generic(model.resize::<16384,   24>()),
+            Self::Medium(model) => Self::from_generic(model.resize::<65536,   32>()),
+            Self::Large(model)  => Self::from_generic(model.resize::<262144,  48>()),
+            Self::Huge(model)   => Self::from_generic(model.resize::<1048576, 64>()),
 
             Self::Giant(_) => None
         }
@@ -170,44 +170,44 @@ impl<F: Float> SizedModel<F> {
         match self {
             Self::Tiny(_) => SizedModelParams {
                 input_tokens: 1024,
-                embedding_dimensions: 32,
+                embedding_dimensions: 8,
                 embedding_context_radius: 4,
-                parameters: GenericWordEmbeddingsModel::<1024, 32, F>::PARAMS
+                parameters: GenericWordEmbeddingsModel::<1024, 8, F>::PARAMS
             },
 
             Self::Small(_) => SizedModelParams {
                 input_tokens: 4096,
-                embedding_dimensions: 64,
+                embedding_dimensions: 16,
                 embedding_context_radius: 4,
-                parameters: GenericWordEmbeddingsModel::<4096, 64, F>::PARAMS
+                parameters: GenericWordEmbeddingsModel::<4096, 16, F>::PARAMS
             },
 
             Self::Medium(_) => SizedModelParams {
                 input_tokens: 16384,
-                embedding_dimensions: 128,
+                embedding_dimensions: 24,
                 embedding_context_radius: 8,
-                parameters: GenericWordEmbeddingsModel::<16384, 128, F>::PARAMS
+                parameters: GenericWordEmbeddingsModel::<16384, 24, F>::PARAMS
             },
 
             Self::Large(_) => SizedModelParams {
                 input_tokens: 65536,
-                embedding_dimensions: 256,
+                embedding_dimensions: 32,
                 embedding_context_radius: 8,
-                parameters: GenericWordEmbeddingsModel::<65536, 256, F>::PARAMS
+                parameters: GenericWordEmbeddingsModel::<65536, 32, F>::PARAMS
             },
 
             Self::Huge(_) => SizedModelParams {
                 input_tokens: 262144,
-                embedding_dimensions: 512,
+                embedding_dimensions: 48,
                 embedding_context_radius: 12,
-                parameters: GenericWordEmbeddingsModel::<262144, 512, F>::PARAMS
+                parameters: GenericWordEmbeddingsModel::<262144, 48, F>::PARAMS
             },
 
             Self::Giant(_) => SizedModelParams {
                 input_tokens: 1048576,
-                embedding_dimensions: 1024,
+                embedding_dimensions: 64,
                 embedding_context_radius: 12,
-                parameters: GenericWordEmbeddingsModel::<1048576, 1024, F>::PARAMS
+                parameters: GenericWordEmbeddingsModel::<1048576, 64, F>::PARAMS
             }
         }
     }
@@ -252,50 +252,50 @@ impl<F: Float> SizedModel<F> {
     where
         // This incredible where statement is needed to fix const generics which are BROKEN!!!!!!!!
 
-        [(); { EncoderDecoder::<1024, 32, F>::MODEL_PARAMS }]: Sized,
-        [(); { Layer::<1024, 32, F>::PARAMS }]: Sized,
-        [(); { Layer::<32, 1024, F>::PARAMS }]: Sized,
+        [(); { EncoderDecoder::<1024, 8, F>::MODEL_PARAMS }]: Sized,
+        [(); { Layer::<1024, 8, F>::PARAMS }]: Sized,
+        [(); { Layer::<8, 1024, F>::PARAMS }]: Sized,
         [(); { Neuron::<1024, F>::PARAMS }]: Sized,
+        [(); { Neuron::<8, F>::PARAMS }]: Sized,
+
+        [(); { EncoderDecoder::<4096, 16, F>::MODEL_PARAMS }]: Sized,
+        [(); { Layer::<4096, 16, F>::PARAMS }]: Sized,
+        [(); { Layer::<16, 4096, F>::PARAMS }]: Sized,
+        [(); { Neuron::<4096, F>::PARAMS }]: Sized,
+        [(); { Neuron::<16, F>::PARAMS }]: Sized,
+
+        [(); { EncoderDecoder::<16384, 24, F>::MODEL_PARAMS }]: Sized,
+        [(); { Layer::<16384, 24, F>::PARAMS }]: Sized,
+        [(); { Layer::<24, 16384, F>::PARAMS }]: Sized,
+        [(); { Neuron::<16384, F>::PARAMS }]: Sized,
+        [(); { Neuron::<24, F>::PARAMS }]: Sized,
+
+        [(); { EncoderDecoder::<65536, 32, F>::MODEL_PARAMS }]: Sized,
+        [(); { Layer::<65536, 32, F>::PARAMS }]: Sized,
+        [(); { Layer::<32, 65536, F>::PARAMS }]: Sized,
+        [(); { Neuron::<65536, F>::PARAMS }]: Sized,
         [(); { Neuron::<32, F>::PARAMS }]: Sized,
 
-        [(); { EncoderDecoder::<4096, 64, F>::MODEL_PARAMS }]: Sized,
-        [(); { Layer::<4096, 64, F>::PARAMS }]: Sized,
-        [(); { Layer::<64, 4096, F>::PARAMS }]: Sized,
-        [(); { Neuron::<4096, F>::PARAMS }]: Sized,
-        [(); { Neuron::<64, F>::PARAMS }]: Sized,
-
-        [(); { EncoderDecoder::<16384, 128, F>::MODEL_PARAMS }]: Sized,
-        [(); { Layer::<16384, 128, F>::PARAMS }]: Sized,
-        [(); { Layer::<128, 16384, F>::PARAMS }]: Sized,
-        [(); { Neuron::<16384, F>::PARAMS }]: Sized,
-        [(); { Neuron::<128, F>::PARAMS }]: Sized,
-
-        [(); { EncoderDecoder::<65536, 256, F>::MODEL_PARAMS }]: Sized,
-        [(); { Layer::<65536, 256, F>::PARAMS }]: Sized,
-        [(); { Layer::<256, 65536, F>::PARAMS }]: Sized,
-        [(); { Neuron::<65536, F>::PARAMS }]: Sized,
-        [(); { Neuron::<256, F>::PARAMS }]: Sized,
-
-        [(); { EncoderDecoder::<262144, 512, F>::MODEL_PARAMS }]: Sized,
-        [(); { Layer::<262144, 512, F>::PARAMS }]: Sized,
-        [(); { Layer::<512, 262144, F>::PARAMS }]: Sized,
+        [(); { EncoderDecoder::<262144, 48, F>::MODEL_PARAMS }]: Sized,
+        [(); { Layer::<262144, 48, F>::PARAMS }]: Sized,
+        [(); { Layer::<48, 262144, F>::PARAMS }]: Sized,
         [(); { Neuron::<262144, F>::PARAMS }]: Sized,
-        [(); { Neuron::<512, F>::PARAMS }]: Sized,
+        [(); { Neuron::<48, F>::PARAMS }]: Sized,
 
-        [(); { EncoderDecoder::<1048576, 1024, F>::MODEL_PARAMS }]: Sized,
-        [(); { Layer::<1048576, 1024, F>::PARAMS }]: Sized,
-        [(); { Layer::<1024, 1048576, F>::PARAMS }]: Sized,
+        [(); { EncoderDecoder::<1048576, 64, F>::MODEL_PARAMS }]: Sized,
+        [(); { Layer::<1048576, 64, F>::PARAMS }]: Sized,
+        [(); { Layer::<64, 1048576, F>::PARAMS }]: Sized,
         [(); { Neuron::<1048576, F>::PARAMS }]: Sized,
-        [(); { Neuron::<1024, F>::PARAMS }]: Sized
+        [(); { Neuron::<64, F>::PARAMS }]: Sized
     {
         // policy.window() will zero-allocate new params gradients if BackpropagationSnapshot is too small.
         match self {
-            Self::Tiny(model)   => policy.window::<{ EncoderDecoder::<1024,    32,   F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy, device)),
-            Self::Small(model)  => policy.window::<{ EncoderDecoder::<4096,    64,   F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy, device)),
-            Self::Medium(model) => policy.window::<{ EncoderDecoder::<16384,   128,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<8>(tokens, &mut policy, device)),
-            Self::Large(model)  => policy.window::<{ EncoderDecoder::<65536,   256,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<8>(tokens, &mut policy, device)),
-            Self::Huge(model)   => policy.window::<{ EncoderDecoder::<262144,  512,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<12>(tokens, &mut policy, device)),
-            Self::Giant(model)  => policy.window::<{ EncoderDecoder::<1048576, 1024, F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<12>(tokens, &mut policy, device))
+            Self::Tiny(model)   => policy.window::<{ EncoderDecoder::<1024,    8,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy, device)),
+            Self::Small(model)  => policy.window::<{ EncoderDecoder::<4096,    16, F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy, device)),
+            Self::Medium(model) => policy.window::<{ EncoderDecoder::<16384,   24, F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<8>(tokens, &mut policy, device)),
+            Self::Large(model)  => policy.window::<{ EncoderDecoder::<65536,   32, F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<8>(tokens, &mut policy, device)),
+            Self::Huge(model)   => policy.window::<{ EncoderDecoder::<262144,  48, F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<12>(tokens, &mut policy, device)),
+            Self::Giant(model)  => policy.window::<{ EncoderDecoder::<1048576, 64, F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<12>(tokens, &mut policy, device))
         }
     }
 
@@ -352,44 +352,44 @@ impl<F: Float> SizedModel<F> {
     }
 }
 
-impl<F: Float> From<GenericWordEmbeddingsModel<1024, 32, F>> for SizedModel<F> {
+impl<F: Float> From<GenericWordEmbeddingsModel<1024, 8, F>> for SizedModel<F> {
     #[inline]
-    fn from(model: GenericWordEmbeddingsModel<1024, 32, F>) -> Self {
+    fn from(model: GenericWordEmbeddingsModel<1024, 8, F>) -> Self {
         Self::Tiny(model)
     }
 }
 
-impl<F: Float> From<GenericWordEmbeddingsModel<4096, 64, F>> for SizedModel<F> {
+impl<F: Float> From<GenericWordEmbeddingsModel<4096, 16, F>> for SizedModel<F> {
     #[inline]
-    fn from(model: GenericWordEmbeddingsModel<4096, 64, F>) -> Self {
+    fn from(model: GenericWordEmbeddingsModel<4096, 16, F>) -> Self {
         Self::Small(model)
     }
 }
 
-impl<F: Float> From<GenericWordEmbeddingsModel<16384, 128, F>> for SizedModel<F> {
+impl<F: Float> From<GenericWordEmbeddingsModel<16384, 24, F>> for SizedModel<F> {
     #[inline]
-    fn from(model: GenericWordEmbeddingsModel<16384, 128, F>) -> Self {
+    fn from(model: GenericWordEmbeddingsModel<16384, 24, F>) -> Self {
         Self::Medium(model)
     }
 }
 
-impl<F: Float> From<GenericWordEmbeddingsModel<65536, 256, F>> for SizedModel<F> {
+impl<F: Float> From<GenericWordEmbeddingsModel<65536, 32, F>> for SizedModel<F> {
     #[inline]
-    fn from(model: GenericWordEmbeddingsModel<65536, 256, F>) -> Self {
+    fn from(model: GenericWordEmbeddingsModel<65536, 32, F>) -> Self {
         Self::Large(model)
     }
 }
 
-impl<F: Float> From<GenericWordEmbeddingsModel<262144, 512, F>> for SizedModel<F> {
+impl<F: Float> From<GenericWordEmbeddingsModel<262144, 48, F>> for SizedModel<F> {
     #[inline]
-    fn from(model: GenericWordEmbeddingsModel<262144, 512, F>) -> Self {
+    fn from(model: GenericWordEmbeddingsModel<262144, 48, F>) -> Self {
         Self::Huge(model)
     }
 }
 
-impl<F: Float> From<GenericWordEmbeddingsModel<1048576, 1024, F>> for SizedModel<F> {
+impl<F: Float> From<GenericWordEmbeddingsModel<1048576, 64, F>> for SizedModel<F> {
     #[inline]
-    fn from(model: GenericWordEmbeddingsModel<1048576, 1024, F>) -> Self {
+    fn from(model: GenericWordEmbeddingsModel<1048576, 64, F>) -> Self {
         Self::Giant(model)
     }
 }
