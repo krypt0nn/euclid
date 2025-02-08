@@ -12,7 +12,14 @@ pub mod prelude {
     pub use super::sized_model::{
         SizedModelParams as WordEmbeddingsModelParams,
         SizedModelLoss as WordEmbeddingsModelLoss,
-        SizedModel as WordEmbeddingsModel
+        SizedModel as WordEmbeddingsModel,
+
+        TINY_EMBEDDING_SIZE,
+        SMALL_EMBEDDING_SIZE,
+        MEDIUM_EMBEDDING_SIZE,
+        LARGE_EMBEDDING_SIZE,
+        HUGE_EMBEDDING_SIZE,
+        GIANT_EMBEDDING_SIZE
     };
 
     pub use super::database::prelude::*;

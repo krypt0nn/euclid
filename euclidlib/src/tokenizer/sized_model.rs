@@ -1,5 +1,12 @@
 use crate::prelude::*;
 
+pub const TINY_EMBEDDING_SIZE: usize   = 8;
+pub const SMALL_EMBEDDING_SIZE: usize  = 16;
+pub const MEDIUM_EMBEDDING_SIZE: usize = 24;
+pub const LARGE_EMBEDDING_SIZE: usize  = 32;
+pub const HUGE_EMBEDDING_SIZE: usize   = 48;
+pub const GIANT_EMBEDDING_SIZE: usize  = 64;
+
 fn scale_slice<const LEN: usize, F: Float>(slice: &[F]) -> Box<[F; LEN]> {
     let mut scaled = unsafe {
         alloc_fixed_heap_array_with(F::ZERO)
@@ -42,60 +49,60 @@ pub enum SizedModel<F: Float> {
     // ! in other parts of the code as well and you will have to find and
     // ! update them there too.
 
-    /// 1K tokens, 32 dimensions, 4 context tokens, 18K parameters.
-    Tiny(GenericWordEmbeddingsModel<1024, 8, F>),
+    /// 1K tokens, 8 dimensions, 4 context tokens, 18K parameters.
+    Tiny(GenericWordEmbeddingsModel<1024, TINY_EMBEDDING_SIZE, F>),
 
-    /// 4K tokens, 64 dimensions, 4 context tokens, 135K parameters.
-    Small(GenericWordEmbeddingsModel<4096, 16, F>),
+    /// 4K tokens, 16 dimensions, 4 context tokens, 135K parameters.
+    Small(GenericWordEmbeddingsModel<4096, SMALL_EMBEDDING_SIZE, F>),
 
-    /// 16K tokens, 128 dimensions, 8 context tokens, 803K parameters.
-    Medium(GenericWordEmbeddingsModel<16384, 24, F>),
+    /// 16K tokens, 24 dimensions, 8 context tokens, 803K parameters.
+    Medium(GenericWordEmbeddingsModel<16384, MEDIUM_EMBEDDING_SIZE, F>),
 
-    /// 65K tokens, 256 dimensions, 8 context tokens, 4.2M parameters.
-    Large(GenericWordEmbeddingsModel<65536, 32, F>),
+    /// 65K tokens, 32 dimensions, 8 context tokens, 4.2M parameters.
+    Large(GenericWordEmbeddingsModel<65536, LARGE_EMBEDDING_SIZE, F>),
 
-    /// 250K tokens, 512 dimensions, 12 context tokens, 25.4M parameters.
-    Huge(GenericWordEmbeddingsModel<262144, 48, F>),
+    /// 250K tokens, 48 dimensions, 12 context tokens, 25.4M parameters.
+    Huge(GenericWordEmbeddingsModel<262144, HUGE_EMBEDDING_SIZE, F>),
 
-    /// 1M tokens, 1024 dimensions, 12 context tokens, 135.2M parameters.
-    Giant(GenericWordEmbeddingsModel<1048576, 64, F>)
+    /// 1M tokens, 64 dimensions, 12 context tokens, 135.2M parameters.
+    Giant(GenericWordEmbeddingsModel<1048576, GIANT_EMBEDDING_SIZE, F>)
 }
 
 impl<F: Float> SizedModel<F> {
     #[inline]
     /// Create new tiny model with random parameters.
     pub fn random_tiny() -> Self {
-        Self::Tiny(GenericWordEmbeddingsModel::<1024, 8, F>::random())
+        Self::Tiny(GenericWordEmbeddingsModel::<1024, TINY_EMBEDDING_SIZE, F>::random())
     }
 
     #[inline]
     /// Create new small model with random parameters.
     pub fn random_small() -> Self {
-        Self::Small(GenericWordEmbeddingsModel::<4096, 16, F>::random())
+        Self::Small(GenericWordEmbeddingsModel::<4096, SMALL_EMBEDDING_SIZE, F>::random())
     }
 
     #[inline]
     /// Create new medium model with random parameters.
     pub fn random_medium() -> Self {
-        Self::Medium(GenericWordEmbeddingsModel::<16384, 24, F>::random())
+        Self::Medium(GenericWordEmbeddingsModel::<16384, MEDIUM_EMBEDDING_SIZE, F>::random())
     }
 
     #[inline]
     /// Create new large model with random parameters.
     pub fn random_large() -> Self {
-        Self::Large(GenericWordEmbeddingsModel::<65536, 32, F>::random())
+        Self::Large(GenericWordEmbeddingsModel::<65536, LARGE_EMBEDDING_SIZE, F>::random())
     }
 
     #[inline]
     /// Create new huge model with random parameters.
     pub fn random_huge() -> Self {
-        Self::Huge(GenericWordEmbeddingsModel::<262144, 48, F>::random())
+        Self::Huge(GenericWordEmbeddingsModel::<262144, HUGE_EMBEDDING_SIZE, F>::random())
     }
 
     #[inline]
     /// Create new giant model with random parameters.
     pub fn random_giant() -> Self {
-        Self::Giant(GenericWordEmbeddingsModel::<1048576, 64, F>::random())
+        Self::Giant(GenericWordEmbeddingsModel::<1048576, GIANT_EMBEDDING_SIZE, F>::random())
     }
 
     /// Convert given generic word embeddings model into dynamically sized.
@@ -155,11 +162,11 @@ impl<F: Float> SizedModel<F> {
     /// Upscale the model to the higher resolution.
     pub fn upscale(&self) -> Option<Self> {
         match self {
-            Self::Tiny(model)   => Self::from_generic(model.resize::<4096,    16>()),
-            Self::Small(model)  => Self::from_generic(model.resize::<16384,   24>()),
-            Self::Medium(model) => Self::from_generic(model.resize::<65536,   32>()),
-            Self::Large(model)  => Self::from_generic(model.resize::<262144,  48>()),
-            Self::Huge(model)   => Self::from_generic(model.resize::<1048576, 64>()),
+            Self::Tiny(model)   => Self::from_generic(model.resize::<4096,    SMALL_EMBEDDING_SIZE>()),
+            Self::Small(model)  => Self::from_generic(model.resize::<16384,   MEDIUM_EMBEDDING_SIZE>()),
+            Self::Medium(model) => Self::from_generic(model.resize::<65536,   LARGE_EMBEDDING_SIZE>()),
+            Self::Large(model)  => Self::from_generic(model.resize::<262144,  HUGE_EMBEDDING_SIZE>()),
+            Self::Huge(model)   => Self::from_generic(model.resize::<1048576, GIANT_EMBEDDING_SIZE>()),
 
             Self::Giant(_) => None
         }
@@ -170,44 +177,44 @@ impl<F: Float> SizedModel<F> {
         match self {
             Self::Tiny(_) => SizedModelParams {
                 input_tokens: 1024,
-                embedding_dimensions: 8,
+                embedding_dimensions: TINY_EMBEDDING_SIZE,
                 embedding_context_radius: 4,
-                parameters: GenericWordEmbeddingsModel::<1024, 8, F>::PARAMS
+                parameters: GenericWordEmbeddingsModel::<1024, TINY_EMBEDDING_SIZE, F>::PARAMS
             },
 
             Self::Small(_) => SizedModelParams {
                 input_tokens: 4096,
-                embedding_dimensions: 16,
+                embedding_dimensions: SMALL_EMBEDDING_SIZE,
                 embedding_context_radius: 4,
-                parameters: GenericWordEmbeddingsModel::<4096, 16, F>::PARAMS
+                parameters: GenericWordEmbeddingsModel::<4096, SMALL_EMBEDDING_SIZE, F>::PARAMS
             },
 
             Self::Medium(_) => SizedModelParams {
                 input_tokens: 16384,
-                embedding_dimensions: 24,
+                embedding_dimensions: MEDIUM_EMBEDDING_SIZE,
                 embedding_context_radius: 8,
-                parameters: GenericWordEmbeddingsModel::<16384, 24, F>::PARAMS
+                parameters: GenericWordEmbeddingsModel::<16384, MEDIUM_EMBEDDING_SIZE, F>::PARAMS
             },
 
             Self::Large(_) => SizedModelParams {
                 input_tokens: 65536,
-                embedding_dimensions: 32,
+                embedding_dimensions: LARGE_EMBEDDING_SIZE,
                 embedding_context_radius: 8,
-                parameters: GenericWordEmbeddingsModel::<65536, 32, F>::PARAMS
+                parameters: GenericWordEmbeddingsModel::<65536, LARGE_EMBEDDING_SIZE, F>::PARAMS
             },
 
             Self::Huge(_) => SizedModelParams {
                 input_tokens: 262144,
-                embedding_dimensions: 48,
+                embedding_dimensions: HUGE_EMBEDDING_SIZE,
                 embedding_context_radius: 12,
-                parameters: GenericWordEmbeddingsModel::<262144, 48, F>::PARAMS
+                parameters: GenericWordEmbeddingsModel::<262144, HUGE_EMBEDDING_SIZE, F>::PARAMS
             },
 
             Self::Giant(_) => SizedModelParams {
                 input_tokens: 1048576,
-                embedding_dimensions: 64,
+                embedding_dimensions: GIANT_EMBEDDING_SIZE,
                 embedding_context_radius: 12,
-                parameters: GenericWordEmbeddingsModel::<1048576, 64, F>::PARAMS
+                parameters: GenericWordEmbeddingsModel::<1048576, GIANT_EMBEDDING_SIZE, F>::PARAMS
             }
         }
     }
@@ -290,12 +297,12 @@ impl<F: Float> SizedModel<F> {
     {
         // policy.window() will zero-allocate new params gradients if BackpropagationSnapshot is too small.
         match self {
-            Self::Tiny(model)   => policy.window::<{ EncoderDecoder::<1024,    8,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy, device)),
-            Self::Small(model)  => policy.window::<{ EncoderDecoder::<4096,    16, F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy, device)),
-            Self::Medium(model) => policy.window::<{ EncoderDecoder::<16384,   24, F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<8>(tokens, &mut policy, device)),
-            Self::Large(model)  => policy.window::<{ EncoderDecoder::<65536,   32, F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<8>(tokens, &mut policy, device)),
-            Self::Huge(model)   => policy.window::<{ EncoderDecoder::<262144,  48, F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<12>(tokens, &mut policy, device)),
-            Self::Giant(model)  => policy.window::<{ EncoderDecoder::<1048576, 64, F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<12>(tokens, &mut policy, device))
+            Self::Tiny(model)   => policy.window::<{ EncoderDecoder::<1024,    TINY_EMBEDDING_SIZE,   F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy, device)),
+            Self::Small(model)  => policy.window::<{ EncoderDecoder::<4096,    SMALL_EMBEDDING_SIZE,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<4>(tokens, &mut policy, device)),
+            Self::Medium(model) => policy.window::<{ EncoderDecoder::<16384,   MEDIUM_EMBEDDING_SIZE, F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<8>(tokens, &mut policy, device)),
+            Self::Large(model)  => policy.window::<{ EncoderDecoder::<65536,   LARGE_EMBEDDING_SIZE,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<8>(tokens, &mut policy, device)),
+            Self::Huge(model)   => policy.window::<{ EncoderDecoder::<262144,  HUGE_EMBEDDING_SIZE,   F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<12>(tokens, &mut policy, device)),
+            Self::Giant(model)  => policy.window::<{ EncoderDecoder::<1048576, GIANT_EMBEDDING_SIZE,  F>::MODEL_PARAMS }, _>(0, move |mut policy| model.train::<12>(tokens, &mut policy, device))
         }
     }
 
@@ -352,44 +359,44 @@ impl<F: Float> SizedModel<F> {
     }
 }
 
-impl<F: Float> From<GenericWordEmbeddingsModel<1024, 8, F>> for SizedModel<F> {
-    #[inline]
-    fn from(model: GenericWordEmbeddingsModel<1024, 8, F>) -> Self {
+impl<F: Float> From<GenericWordEmbeddingsModel<1024, TINY_EMBEDDING_SIZE, F>> for SizedModel<F> {
+    #[inline(always)]
+    fn from(model: GenericWordEmbeddingsModel<1024, TINY_EMBEDDING_SIZE, F>) -> Self {
         Self::Tiny(model)
     }
 }
 
-impl<F: Float> From<GenericWordEmbeddingsModel<4096, 16, F>> for SizedModel<F> {
-    #[inline]
-    fn from(model: GenericWordEmbeddingsModel<4096, 16, F>) -> Self {
+impl<F: Float> From<GenericWordEmbeddingsModel<4096, SMALL_EMBEDDING_SIZE, F>> for SizedModel<F> {
+    #[inline(always)]
+    fn from(model: GenericWordEmbeddingsModel<4096, SMALL_EMBEDDING_SIZE, F>) -> Self {
         Self::Small(model)
     }
 }
 
-impl<F: Float> From<GenericWordEmbeddingsModel<16384, 24, F>> for SizedModel<F> {
-    #[inline]
-    fn from(model: GenericWordEmbeddingsModel<16384, 24, F>) -> Self {
+impl<F: Float> From<GenericWordEmbeddingsModel<16384, MEDIUM_EMBEDDING_SIZE, F>> for SizedModel<F> {
+    #[inline(always)]
+    fn from(model: GenericWordEmbeddingsModel<16384, MEDIUM_EMBEDDING_SIZE, F>) -> Self {
         Self::Medium(model)
     }
 }
 
-impl<F: Float> From<GenericWordEmbeddingsModel<65536, 32, F>> for SizedModel<F> {
-    #[inline]
-    fn from(model: GenericWordEmbeddingsModel<65536, 32, F>) -> Self {
+impl<F: Float> From<GenericWordEmbeddingsModel<65536, LARGE_EMBEDDING_SIZE, F>> for SizedModel<F> {
+    #[inline(always)]
+    fn from(model: GenericWordEmbeddingsModel<65536, LARGE_EMBEDDING_SIZE, F>) -> Self {
         Self::Large(model)
     }
 }
 
-impl<F: Float> From<GenericWordEmbeddingsModel<262144, 48, F>> for SizedModel<F> {
-    #[inline]
-    fn from(model: GenericWordEmbeddingsModel<262144, 48, F>) -> Self {
+impl<F: Float> From<GenericWordEmbeddingsModel<262144, HUGE_EMBEDDING_SIZE, F>> for SizedModel<F> {
+    #[inline(always)]
+    fn from(model: GenericWordEmbeddingsModel<262144, HUGE_EMBEDDING_SIZE, F>) -> Self {
         Self::Huge(model)
     }
 }
 
-impl<F: Float> From<GenericWordEmbeddingsModel<1048576, 64, F>> for SizedModel<F> {
-    #[inline]
-    fn from(model: GenericWordEmbeddingsModel<1048576, 64, F>) -> Self {
+impl<F: Float> From<GenericWordEmbeddingsModel<1048576, GIANT_EMBEDDING_SIZE, F>> for SizedModel<F> {
+    #[inline(always)]
+    fn from(model: GenericWordEmbeddingsModel<1048576, GIANT_EMBEDDING_SIZE, F>) -> Self {
         Self::Giant(model)
     }
 }
