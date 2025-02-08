@@ -133,7 +133,7 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> LSTMGenerator<
             if n > 2 {
                 let gradients_div = F::from_float(INPUT_SIZE as f32 / OUTPUT_SIZE as f32);
 
-                for i in (0..n - 3).rev() {
+                for i in (1..n - 3).rev() {
                     let (_, short_memory, input, _, _) = &forward[i];
 
                     gradients.copy_from_slice(&lstm_gradients[..OUTPUT_SIZE]);
@@ -156,7 +156,7 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> LSTMGenerator<
                         self.output_layer.backward_propagated(short_memory, &gradients, &mut policy, device)
                     });
 
-                    let (long_memory, short_memory, _, _, _) = &forward[n - 2];
+                    let (long_memory, short_memory, _, _, _) = &forward[i - 1];
 
                     lstm_gradients = policy.window({ Layer::<INPUT_SIZE, OUTPUT_SIZE, F>::PARAMS }, |mut policy| {
                         self.lstm_layer.backward_propagated(long_memory, short_memory, input, &output_gradients, &mut policy)
