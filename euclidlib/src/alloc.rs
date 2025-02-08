@@ -111,3 +111,27 @@ pub unsafe fn alloc_fixed_heap_array_from<T, const N: usize>(mut callback: impl 
 
     Ok(array)
 }
+
+#[inline]
+/// Scale slice into a fixed size heap-allocated array.
+///
+/// ```
+/// assert_eq!(euclidlib::alloc::scale_slice::<5, u32>(&[1, 2]), [1, 2, 0, 0, 0]);
+/// assert_eq!(euclidlib::alloc::scale_slice::<2, u32>(&[1, 2, 3, 4, 5]), [1, 2]);
+/// ```
+pub fn scale_slice<const LEN: usize, T: Copy + Default>(slice: &[T]) -> Box<[T; LEN]> {
+    let mut scaled = unsafe {
+        alloc_fixed_heap_array_with(T::default())
+            .expect("Failed to allocate memory for scaled slice")
+    };
+
+    let slice_len = slice.len();
+
+    if LEN >= slice_len {
+        scaled[..slice_len].copy_from_slice(slice);
+    } else {
+        scaled.copy_from_slice(&slice[..LEN]);
+    }
+
+    scaled
+}

@@ -7,23 +7,6 @@ pub const LARGE_EMBEDDING_SIZE: usize  = 32;
 pub const HUGE_EMBEDDING_SIZE: usize   = 48;
 pub const GIANT_EMBEDDING_SIZE: usize  = 64;
 
-fn scale_slice<const LEN: usize, F: Float>(slice: &[F]) -> Box<[F; LEN]> {
-    let mut scaled = unsafe {
-        alloc_fixed_heap_array_with(F::ZERO)
-            .expect("Failed to allocate memory for scaled slice")
-    };
-
-    let slice_len = slice.len();
-
-    if LEN >= slice_len {
-        scaled[..slice_len].copy_from_slice(slice);
-    } else {
-        scaled.copy_from_slice(&slice[..LEN]);
-    }
-
-    scaled
-}
-
 #[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash)]
 /// Information about the dynamically sized model.
 pub struct SizedModelParams {
