@@ -211,7 +211,7 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
     pub fn backward_propagated(
         &mut self,
         inputs: impl IntoHeapArray<F, INPUT_SIZE>,
-        forward_gradients: impl IntoHeapArray<F, OUTPUT_SIZE>,
+        output_gradients: impl IntoHeapArray<F, OUTPUT_SIZE>,
         policy: &mut BackpropagationSnapshot<{ Layer::<INPUT_SIZE, OUTPUT_SIZE, F>::PARAMS }, F>,
         device: &mut impl Device
     ) -> Box<[F; INPUT_SIZE]>
@@ -220,7 +220,7 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
     {
         unsafe {
             let inputs = inputs.into_heap_array();
-            let forward_gradients = forward_gradients.into_heap_array();
+            let output_gradients = output_gradients.into_heap_array();
 
             let mut backward_gradients = alloc_fixed_heap_array_with(F::ZERO)
                 .expect("Failed to allocate memory for neurons layer backpropagation gradients");
@@ -228,7 +228,7 @@ impl<const INPUT_SIZE: usize, const OUTPUT_SIZE: usize, F: Float> Layer<INPUT_SI
             device.backward_propagated(
                 self.neurons.as_mut(),
                 &inputs,
-                &forward_gradients,
+                &output_gradients,
                 &mut backward_gradients,
                 policy
             );

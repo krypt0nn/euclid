@@ -17,4 +17,5 @@ pub mod prelude {
     pub use super::neural_network::prelude::*;
     pub use super::encoder_decoder::*;
     pub use super::tokenizer::prelude::*;
+    pub use super::lstm_generator::*;
 }
