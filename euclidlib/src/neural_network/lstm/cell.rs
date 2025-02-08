@@ -298,9 +298,9 @@ impl<F: Float> LSTMCell<F> {
         let div = F::from_float(1.0 / 6.0_f32);
 
         // Divide before summing because `F` can be very small type.
-        short_memory_output_value_gradients[0]  * div + short_memory_output_value_gradients[1]  * div +
-        long_memory_remember_value_gradients[0] * div + long_memory_remember_value_gradients[1] * div +
-        long_memory_forget_value_gradients[0]   * div + long_memory_forget_value_gradients[1]   * div
+        (short_memory_output_value_gradients[0]  + short_memory_output_value_gradients[1])  * div +
+        (long_memory_remember_value_gradients[0] + long_memory_remember_value_gradients[1]) * div +
+        (long_memory_forget_value_gradients[0]   + long_memory_forget_value_gradients[1])   * div
     }
 
     /// Train LSTM cell on given inputs sequence.
@@ -344,7 +344,7 @@ impl<F: Float> LSTMCell<F> {
 }
 
 #[test]
-/// Test Long-Short Term Memory Cell training
+/// Test Long Short-Term Memory Cell training
 /// on samples which couldn't be predicted by
 /// regular neurons without memory.
 fn test_lstm_cell() {

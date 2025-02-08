@@ -5,7 +5,7 @@ pub mod backpropagation;
 pub mod neuron;
 pub mod device;
 pub mod layer;
-pub mod lstm_cell;
+pub mod lstm;
 
 pub mod prelude {
     pub use super::float::*;
@@ -15,5 +15,5 @@ pub mod prelude {
     pub use super::neuron::*;
     pub use super::device::prelude::*;
     pub use super::layer::*;
-    pub use super::lstm_cell::*;
+    pub use super::lstm::prelude::*;
 }

@@ -7,6 +7,7 @@ pub mod document;
 pub mod neural_network;
 pub mod encoder_decoder;
 pub mod tokenizer;
+pub mod lstm_generator;
 
 pub mod prelude {
     pub use super::alloc::*;
